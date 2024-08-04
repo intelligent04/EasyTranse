@@ -1,6 +1,9 @@
 document.getElementById('translatePage').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, { type: 'TranslatePage' });
+    chrome.storage.sync.get('language', (data) => {
+      const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'TranslatePage', language: lang });
+    });
   });
 });
 

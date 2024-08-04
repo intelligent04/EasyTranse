@@ -22,6 +22,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
         });
     });
+  } else if (message.type === 'LanguageChanged') {
+    // 새로운 언어 설정을 저장
+    chrome.storage.sync.set({ language: message.language }, () => {
+      console.log('Language updated to:', message.language);
+    });
   }
 });
 
