@@ -3,7 +3,14 @@ function getAllTextNodes() {
   let walker = document.createTreeWalker(
     document.body,
     NodeFilter.SHOW_TEXT,
-    null,
+    {
+      acceptNode: function(node) {
+        if (node.parentElement && node.parentElement.getAttribute('translate') === 'no') {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    },
     false
   );
 
@@ -15,13 +22,10 @@ function getAllTextNodes() {
   }
   return textNodes;
 }
-//getattribute로 translate no라고 돼있는 애 빼고 리스트에 담아서 백에 보내기
 
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
 function sendForeignTextToBackground(textNodes) {
-  let gotTexts = textNodes.map(function (node) {
-    return node.textContent;
-  });
+  let gotTexts = textNodes.map(node => node.textContent);
   chrome.runtime.sendMessage({ type: 'Text', data: gotTexts });
 }
 
@@ -33,7 +37,6 @@ sendForeignTextToBackground(textNodes);
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TranslatedText') {
     const translatedTexts = message.data;
-    let textNodes = getAllTextNodes();
     textNodes.forEach((node, index) => {
       node.textContent = translatedTexts[index];
     });
