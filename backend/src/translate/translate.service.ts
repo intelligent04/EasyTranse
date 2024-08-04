@@ -41,7 +41,10 @@ export class TranslateService {
       strs.splice(i.index, 1);
     }
 
-    let resp = await axios.post(process.env.AI_API, strs, {
+    let resp = await axios.post(process.env.AI_API, {
+      strs,
+      language,
+    }, {
       headers: {
         'Content-Type': 'application/json',
       },
