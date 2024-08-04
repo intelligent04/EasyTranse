@@ -5,7 +5,16 @@ function getAllTextNodes() {
     NodeFilter.SHOW_TEXT,
     {
       acceptNode: function(node) {
-        if (node.parentElement && node.parentElement.getAttribute('translate') === 'no') {
+        // 번역이 불필요한 요소나 빈 텍스트 노드 제외
+        if (node.parentElement && (
+          node.parentElement.tagName === 'SCRIPT' || 
+          node.parentElement.tagName === 'STYLE' || 
+          node.parentElement.tagName === 'NOSCRIPT' || 
+          node.parentElement.tagName === 'IFRAME' || 
+          node.parentElement.tagName === 'OBJECT' || 
+          node.parentElement.getAttribute('translate') === 'no' ||
+          !node.textContent.trim()
+        )) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -17,11 +26,8 @@ function getAllTextNodes() {
   let textNodes = [];
   let node = walker.nextNode();
   while (node) {
-    if (node.textContent.trim() !== ''){ // 빈 문자열, 개행문자만 있는 문자열 패스
-      textNodes.push(node);
-    }
+    textNodes.push(node);
     node = walker.nextNode();
-    
   }
   return textNodes;
 }
