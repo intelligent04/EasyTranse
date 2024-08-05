@@ -93,7 +93,8 @@ async def main():
         for key in translated_dict.keys():
             translated_texts.append(translated_dict[key])
     
-    print(translated_texts)
+    result = {"strs": translated_texts, "language": "ko"}
+    return result
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    print(asyncio.run(main()))
