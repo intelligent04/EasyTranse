@@ -7,11 +7,11 @@ class WordDict:
 
 def divide_into_five(words_list):
     word_dicts = {}
-    chunk_size = len(words_list) // 5
-    remainder = len(words_list) % 5  # 나머지 처리용
+    chunk_size = len(words_list) // 3
+    remainder = len(words_list) % 3  # 나머지 처리용
 
     start = 0
-    for i in range(5):
+    for i in range(3):
         end = start + chunk_size + (1 if i < remainder else 0)  # 나머지 분배
         words_chunk = words_list[start:end]
         word_dicts[f'word_dict_{i + 1}'] = WordDict(words_chunk)
