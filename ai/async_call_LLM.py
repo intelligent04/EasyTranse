@@ -95,6 +95,5 @@ async def main():
     
     print(translated_texts)
 
-# Run the main function
 if __name__ == "__main__":
     asyncio.run(main())
