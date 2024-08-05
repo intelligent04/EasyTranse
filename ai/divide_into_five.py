@@ -1,6 +1,9 @@
 class WordDict:
     def __init__(self, words):
         self.word_dict = {i: word for i, word in enumerate(words)}  # 단어 리스트를 인덱스와 함께 사전 형태로 저장
+        
+    def to_dict(self):
+        return self.word_dict
 
     def __repr__(self):
         return f"{self.word_dict}"  # 객체를 문자열로 표현할 때 사전 형태로 출력
@@ -29,7 +32,6 @@ if __name__ == "__main__":
     ]  # 단어 리스트 초기화
 
     word_dicts = divide_into_five(words_list)  # 단어 리스트를 3개의 사전으로 나누는 함수 호출
-    # print(word_dicts)
-    for key, value in word_dicts.items():
-        print(f"{key}: {value}")  # 각 사전의 키와 값을 출력
-
+    print(word_dicts)
+    # for key, value in word_dicts.items():
+    #     print(f"{key}: {value}")  # 각 사전의 키와 값을 출력
