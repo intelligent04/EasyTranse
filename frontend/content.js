@@ -5,7 +5,16 @@ function getAllTextNodes() {
     NodeFilter.SHOW_TEXT,
     {
       acceptNode: function(node) {
-        if (node.parentElement && node.parentElement.getAttribute('translate') === 'no') {
+        // 번역이 불필요한 요소나 빈 텍스트 노드 제외
+        if (node.parentElement && (
+          node.parentElement.tagName === 'SCRIPT' || 
+          node.parentElement.tagName === 'STYLE' || 
+          node.parentElement.tagName === 'NOSCRIPT' || 
+          node.parentElement.tagName === 'IFRAME' || 
+          node.parentElement.tagName === 'OBJECT' || 
+          node.parentElement.getAttribute('translate') === 'no' ||
+          !node.textContent.trim()
+        )) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -17,11 +26,8 @@ function getAllTextNodes() {
   let textNodes = [];
   let node = walker.nextNode();
   while (node) {
-    if (node.textContent.trim() !== ''){ // 빈 문자열, 개행문자만 있는 문자열 패스
-      textNodes.push(node);
-    }
+    textNodes.push(node);
     node = walker.nextNode();
-    
   }
   return textNodes;
 }
@@ -32,13 +38,13 @@ function getPageLanguage() {
 }
 
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
-function sendForeignTextToBackground(textNodes) {
+function sendForeignTextToBackground(textNodes, lang) {
   let gotTexts = textNodes.map(node => node.textContent).filter(text => text.trim() !== ''); // 빈 문자열 제거
-  let language = getPageLanguage();
+  let language = lang;
   console.log(gotTexts);
   console.log(language);
   chrome.runtime.sendMessage({ 
-    type: 'originalTextText', 
+    type: 'originalText', 
     data: { 
       originalText: gotTexts, 
       language: language 
@@ -50,7 +56,7 @@ function sendForeignTextToBackground(textNodes) {
 function applyTranslatedText(textNodes, translatedTexts) {
   let textIndex = 0;
   textNodes.forEach((node) => {
-    if (node.textContent.trim() !== '') { // 빈 문자열 건너뛰기 , 텍스트 받을 때도 빈 문자열 건너뛰고 텍스트 갈아끼울 때도 빈 문자열을 건너뛰니까 인덱스가 맞음.
+    if (node.textContent.trim() !== '') { // 빈 문자열 건너뛰기
       node.textContent = translatedTexts[textIndex] || '번역 실패';
       textIndex++;
     }
@@ -61,7 +67,7 @@ function applyTranslatedText(textNodes, translatedTexts) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TranslatePage') {
     let textNodes = getAllTextNodes();
-    sendForeignTextToBackground(textNodes);
+    sendForeignTextToBackground(textNodes, message.language);
   } else if (message.type === 'TranslatedText') {
     const translatedTexts = message.data;
     let textNodes = getAllTextNodes();
