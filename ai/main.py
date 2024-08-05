@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 def create_translator():
     load_dotenv()
 
-# API 키를 사용하여 모델 초기화
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-pro-latest", 
-    api_key=os.getenv("GEMINI_API")
-)
+    # API 키를 사용하여 모델 초기화
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash", 
+        api_key=os.getenv("GEMINI_API")
+    )
 
     system_prompt_str = """
     You are a professional translator. 
