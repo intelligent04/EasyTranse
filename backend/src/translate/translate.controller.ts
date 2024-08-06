@@ -7,7 +7,7 @@ export class TranslateController {
   constructor(private readonly translateService: TranslateService) {}
 
   @Post()
-  async getResult(@Body() translateDto: TranslateDto): Promise<string[]> {
+  async getResult(@Body() translateDto: TranslateDto): Promise<TranslateDto> {
     return await this.translateService.getResult(translateDto);
   }
 }
