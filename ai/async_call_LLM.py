@@ -59,7 +59,7 @@ def create_translator():
 
     return translate
 
-async def main(input_dict :dict ) -> dict:
+async def translate_text(input_dict :dict ) -> dict:
     translator = create_translator()
     
     texts = input_dict["str"]
@@ -103,4 +103,4 @@ if __name__ == "__main__":
     # 들어오는 형태 : dict
     input_dict = {"str" : texts, "language" : target_language}
     
-    print(asyncio.run(main(input_dict)))
+    print(asyncio.run(translate_text(input_dict)))
