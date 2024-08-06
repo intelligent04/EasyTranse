@@ -103,6 +103,6 @@ if __name__ == "__main__":
     target_language = "Korean"
 
     # 들어오는 형태 : dict
-    input_dict = {"str": texts, "language": target_language}
+    input_dict = {"strs": texts, "language": target_language}
 
     print(asyncio.run(translate_text(input_dict)))
