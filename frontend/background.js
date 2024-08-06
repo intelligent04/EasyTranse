@@ -1,10 +1,8 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'originalText') {
     const texts = message.data.originalText;
-    
     chrome.storage.sync.get('language', (data) => {
       const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
-      
       // 번역 API를 호출하여 텍스트를 번역
       translateTexts(texts, lang)
         .then((translatedTexts) => {
@@ -15,7 +13,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch((error) => {
           console.error('Translation error:', error);
-          const failedTranslations = texts.map(() => '번역 실패');
+          const failedTranslations = texts.map(() => 'translation failed'); // 번역 실패시 외국어를 모국어가 아닌 "translation failed"라는 글자로 대체함
           chrome.tabs.sendMessage(sender.tab.id, {
             type: 'TranslatedText',
             data: failedTranslations,

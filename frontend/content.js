@@ -65,14 +65,11 @@ const dfs = (el) => {
             .replace(/>/g, "&gt;")}</${tagName}>`;
         }
       }
-      //console.log(i, content);
-      // console.log("##################");
-      // console.log(content);          
-      if (content !== ""){                     // 요소와 수집된 텍스트/태그 출력
-      result.push(content);
+      if (content !== "") {
+        result.push({ element: i, content: content });
       }
-    } else {                                                  // 조건 만족하지 않는 경우
-      result.push(...dfs(i));                                 // DFS 계속 수행
+    } else {
+      result.push(...dfs(i));
     }
   }
 
@@ -84,21 +81,15 @@ function getAllTextNodes() {
   return dfs(document.body);
 }
 
-// 웹페이지의 언어를 파악하는 함수
-function getPageLanguage() {
-  return document.documentElement.lang || 'unknown';
-}
-
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
-function sendForeignTextToBackground(textNodes, lang) {
-  let language = lang;
-  console.log(JSON.stringify({ textNodes: textNodes }));
-  chrome.runtime.sendMessage({ 
-    type: 'originalText', 
-    data: { 
-      originalText: textNodes, 
-      language: language 
-    } 
+function sendForeignTextToBackground(textNodes) {
+  const textContents = textNodes.map(node => node.content);
+  console.log(JSON.stringify({ textContents: textContents }));
+  chrome.runtime.sendMessage({
+    type: 'originalText',
+    data: {
+      originalText: textContents,
+    }
   });
 }
 
@@ -106,12 +97,9 @@ function sendForeignTextToBackground(textNodes, lang) {
 function applyTranslatedText(textNodes, translatedTexts) {
   let textIndex = 0;
   textNodes.forEach((node, index) => {
-    if (node.trim() !== '') { // 빈 문자열 건너뛰기
-      let el = document.querySelector(node);
-      if (el) {
-        el.innerHTML = translatedTexts[textIndex] || '번역 실패';
-        textIndex++;
-      }
+    if (node.content.trim() !== '') {
+      node.element.innerHTML = translatedTexts[textIndex] || '번역 실패';
+      textIndex++;
     }
   });
 }
@@ -120,7 +108,7 @@ function applyTranslatedText(textNodes, translatedTexts) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TranslatePage') {
     let textNodes = getAllTextNodes();
-    sendForeignTextToBackground(textNodes, message.language);
+    sendForeignTextToBackground(textNodes);
   } else if (message.type === 'TranslatedText') {
     const translatedTexts = message.data;
     let textNodes = getAllTextNodes();
