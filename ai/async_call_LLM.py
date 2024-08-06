@@ -59,9 +59,30 @@ def create_translator():
 
     return translate
 
-async def main():
+async def main(input_dict :dict ) -> dict:
     translator = create_translator()
+    
+    texts = input_dict["str"]
+    target_language = input_dict["language"]
+    
+    cut_box = divide_into_five(texts)
+    
+    # Translate all dictionaries concurrently
+    tasks = [translator(d, target_language) for d in cut_box.values()]
+    translated_dicts = await asyncio.gather(*tasks)
+    
+    translated_texts = []
+    # translated_dicts는 [{'0': '...', '1': '...'}, {'0': '...', '1': '...'}, ...] 형태입니다.
+    for translated_dict in translated_dicts:
+        # 각 딕셔너리의 값을 순서대로 리스트에 추가
+        for key in translated_dict.keys():
+            translated_texts.append(translated_dict[key])
+    
+    result = {"strs": translated_texts, "language": target_language}
+    return result
 
+if __name__ == "__main__":
+    # example
     texts = [
     "When and Why you should apply Tensor Parallel",
     "The PyTorch Fully Sharded Data Parallel (FSDP) already has the capability to scale model training to a specific number of GPUs. However, when it comes to further scale the model training in terms of model size and GPU quantity, many additional challenges arise that may require combining Tensor Parallel with FSDP.",
@@ -77,24 +98,9 @@ async def main():
     "To demonstrate how to use the PyTorch native Tensor Parallel APIs, let us look at a common Transformer model. In this tutorial, we use the most recent Llama2 model as a reference Transformer model implementation, as it is also widely used in the community.",
     "Since Tensor Parallel shard individual tensors over a set of devices, we would need to set up the distributed environment (such as NCCL communicators) first. Tensor Parallelism is a Single-Program Multiple-Data (SPMD) sharding algorithm similar to PyTorch DDP/FSDP, and it under the hood leverages the PyTorch DTensor to perform sharding. It also utilizes the DeviceMesh abstraction (which under the hood manages ProcessGroups) for device management and sharding. To see how to utilize DeviceMesh to set up multi-dimensional parallelisms, please refer to this tutorial. Tensor Parallel usually works within each host, so let us first initialize a DeviceMesh that connects 8 GPUs within a host."
     ]
-    
     target_language = "Korean"
     
-    cut_box = divide_into_five(texts)
+    # 들어오는 형태 : dict
+    input_dict = {"str" : texts, "language" : target_language}
     
-    # Translate all dictionaries concurrently
-    tasks = [translator(d, target_language) for d in cut_box.values()]
-    translated_dicts = await asyncio.gather(*tasks)
-    
-    translated_texts = []
-    # translated_dicts는 [{'0': '...', '1': '...'}, {'0': '...', '1': '...'}, ...] 형태입니다.
-    for translated_dict in translated_dicts:
-        # 각 딕셔너리의 값을 순서대로 리스트에 추가
-        for key in translated_dict.keys():
-            translated_texts.append(translated_dict[key])
-    
-    result = {"strs": translated_texts, "language": "ko"}
-    return result
-
-if __name__ == "__main__":
-    print(asyncio.run(main()))
+    print(asyncio.run(main(input_dict)))
