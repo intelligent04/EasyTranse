@@ -3,7 +3,7 @@ import { TranslateDto } from './translate.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Translate } from 'src/entities/translate.entity';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 import axios from 'axios';
 
 @Injectable()
@@ -17,7 +17,7 @@ export class TranslateService {
     return crypto.createHash('sha256').update(str).digest('hex');
   }
 
-  async getResult(translateDto: TranslateDto): Promise<string[]> {
+  async getResult(translateDto: TranslateDto): Promise<TranslateDto> {
     let { strs, language } = translateDto;
 
     let cache: {
@@ -41,23 +41,27 @@ export class TranslateService {
       strs.splice(i.index, 1);
     }
 
-    let resp = await axios.post(process.env.AI_API, {
-      strs,
-      language,
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
+    let resp = await axios.post(
+      process.env.AI_API,
+      {
+        strs,
+        language,
       },
-    });
-    let body = resp.data as string[];
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+    let body = resp.data as TranslateDto;
 
-    if (strs.length !== body.length) {
+    if (strs.length !== body.strs.length) {
       throw new Error('Invalid AI_API response');
     }
 
     for (let i = 0; i < strs.length; i++) {
       let hash = this.getHash(strs[i]);
-      let content = body[i];
+      let content = body.strs[i];
       await this.translateRepository.save({
         hash,
         content,
@@ -66,7 +70,7 @@ export class TranslateService {
     }
 
     for (let i of cache) {
-      body.splice(i.index, 0, i.content);
+      body.strs.splice(i.index, 0, i.content);
     }
 
     return body;
