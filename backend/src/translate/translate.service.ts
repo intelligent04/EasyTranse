@@ -41,22 +41,27 @@ export class TranslateService {
       strs.splice(i.index, 1);
     }
 
-    let resp = await axios.post(
-      process.env.AI_API,
-      {
-        strs,
-        language,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-    );
-    let body = resp.data as TranslateDto;
+    let body = translateDto;
 
-    if (strs.length !== body.strs.length) {
-      throw new Error('Invalid AI_API response');
+    if (strs.length > 0) {
+      let resp = await axios.post(
+        process.env.AI_API,
+        {
+          strs,
+          language,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      if (strs.length !== body.strs.length) {
+        throw new Error('Invalid AI_API response');
+      }
+
+      body = resp.data as TranslateDto;
     }
 
     for (let i = 0; i < strs.length; i++) {
