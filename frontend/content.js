@@ -83,19 +83,21 @@ function getAllTextNodes() {
 
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
 function sendForeignTextToBackground(textNodes) {
-  const strs = textNodes.map(node => node.content);
-  console.log("수집된 텍스트")
-  console.log(JSON.stringify({ strs: strs }));
+  const textContents = textNodes.map(node => node.content);
+  console.log("추출된 텍스트")
+  console.log(JSON.stringify({ textContents: textContents }));
   chrome.runtime.sendMessage({
-    type: 'originalStrs',
+    type: 'originalText',
     data: {
-      originalStrs: strs
+      originalText: textContents,
     }
   });
 }
 
 // 번역된 텍스트를 받아서 페이지에 반영하는 함수
 function applyTranslatedText(textNodes, translatedTexts) {
+  console.log("번역된 텍스트")
+  console.log(translatedTexts)
   let textIndex = 0;
   textNodes.forEach((node, index) => {
     if (node.content.trim() !== '') {
