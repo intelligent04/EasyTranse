@@ -99,12 +99,12 @@ function applyTranslatedText(textNodes, translatedTexts) {
   console.log("번역된 텍스트")
   console.log(translatedTexts)
   let textIndex = 0;
-  textNodes.forEach((node, index) => {
+  textNodes.forEach((node, textIndex) => {
     if (node.content.trim() !== '') {
-      node.element.innerHTML = translatedTexts[textIndex] || '번역 실패';
+      node.element.innerHTML = translatedTexts.strs[textIndex] || '번역 실패';
       textIndex++;
     }
-  });
+  }); 
 }
 
 // 메시지 리스너 추가
