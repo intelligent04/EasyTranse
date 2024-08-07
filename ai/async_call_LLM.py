@@ -22,9 +22,14 @@ class TranslatedDictionary(RootModel):
 def create_translator():
     load_dotenv()
 
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
-        api_key=os.getenv("GEMINI_API")
+    # llm = ChatGoogleGenerativeAI(
+    #     model="gemini-1.5-flash",
+    #     api_key=os.getenv("GEMINI_API")
+    # )
+
+    llm = ChatOpenAI(
+        model="gpt-4o",
+        api_key=os.getenv("OPENAI_API_KEY")
     )
 
     system_prompt_str = """
