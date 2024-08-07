@@ -84,7 +84,7 @@ function getAllTextNodes() {
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
 function sendForeignTextToBackground(textNodes) {
   const strs = textNodes.map(node => node.content);
-
+  console.log("수집된 텍스트")
   console.log(JSON.stringify({ strs: strs }));
   chrome.runtime.sendMessage({
     type: 'originalStrs',

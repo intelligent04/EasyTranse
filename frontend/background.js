@@ -1,5 +1,6 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'originalStrs') {
+    console.log("background.js 시작");
     const strs = message.data.originalText;
     chrome.storage.sync.get('language', (data) => {
       const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
@@ -31,6 +32,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // 번역 API 호출 함수
 async function translateTexts(strs, lang) {
   try {
+    console.log("api 호출 시작")
     const translatedTexts = await callTranslationAPI(strs, lang);
     return translatedTexts;
   } catch (error) {
