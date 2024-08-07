@@ -1,10 +1,10 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'originalText') {
-    const texts = message.data.originalText;
+  if (message.type === 'originalStrs') {
+    const strs = message.data.originalText;
     chrome.storage.sync.get('language', (data) => {
       const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
       // 번역 API를 호출하여 텍스트를 번역
-      translateTexts(texts, lang)
+      translateTexts(strs, lang)
         .then((translatedTexts) => {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: 'TranslatedText',
@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch((error) => {
           console.error('Translation error:', error);
-          const failedTranslations = texts.map(() => 'translation failed'); // 번역 실패시 외국어를 모국어가 아닌 "translation failed"라는 글자로 대체함
+          const failedTranslations = strs.map(() => 'translation failed'); // 번역 실패시 외국어를 모국어가 아닌 "translation failed"라는 글자로 대체함
           chrome.tabs.sendMessage(sender.tab.id, {
             type: 'TranslatedText',
             data: failedTranslations,
@@ -29,18 +29,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // 번역 API 호출 함수
-async function translateTexts(texts, lang) {
+async function translateTexts(strs, lang) {
   try {
-    const translatedTexts = await callTranslationAPI(texts, lang);
+    const translatedTexts = await callTranslationAPI(strs, lang);
     return translatedTexts;
   } catch (error) {
     console.error('Translation API call failed:', error);
-    return texts.map(() => 'api에서 번역 실패');
+    return strs.map(() => 'api에서 번역 실패');
   }
 }
 
 // 번역 API 호출 함수
-async function callTranslationAPI(texts, lang) {
+async function callTranslationAPI(strs, lang) {
+  console.log("api호출 함수 작동!!!");
+  JSON.stringify({ strs: strs, language: lang })
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
 
@@ -49,7 +51,7 @@ async function callTranslationAPI(texts, lang) {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ texts: texts, language: lang }), // body에 원문 text 넣어서 json 형태로 전달
+    body: JSON.stringify({ strs: strs, language: lang }), // body에 원문 text 넣어서 json 형태로 전달
     signal: controller.signal,
   });
 
