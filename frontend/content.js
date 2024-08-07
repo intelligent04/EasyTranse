@@ -99,8 +99,11 @@ function applyTranslatedText(textNodes, translatedTexts) {
   console.log("번역된 텍스트")
   console.log(translatedTexts)
   let textIndex = 0;
+  //console.log('하나');
   textNodes.forEach((node, textIndex) => {
     if (node.content.trim() !== '') {
+      //console.log('둘');
+      console.log(translatedTexts.strs[textIndex]);
       node.element.innerHTML = translatedTexts.strs[textIndex] || '번역 실패';
       textIndex++;
     }
