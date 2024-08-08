@@ -49,7 +49,7 @@ async function callTranslationAPI(texts, lang) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
 
-  const response = await fetch('http://158.247.199.223:3001/translate ', {
+  const response = await fetch('https://translate.kookm.in/translate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
