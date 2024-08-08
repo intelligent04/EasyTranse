@@ -37,7 +37,7 @@ if __name__ == "__main__":
     #     "green", "yellow", "purple", "code"
     # ] 
     words_list = [
-        "one", "two"
+        "one"
     ] 
 
     word_dicts = divide_into_five(words_list)  # 단어 리스트를 3개의 사전으로 나누는 함수 호출
