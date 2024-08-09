@@ -32,8 +32,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // 번역 API 호출 함수
 async function translateTexts(texts, lang) {
   try {
-    //console.log(1);
-    //console.log(JSON.stringify({ texts: texts, language: lang }));
+    console.log(1);
+    console.log(JSON.stringify({ texts: texts, language: lang }));
     const translatedTexts = await callTranslationAPI(texts, lang);
     return translatedTexts;
   } catch (error) {
@@ -44,12 +44,12 @@ async function translateTexts(texts, lang) {
 
 // 번역 API 호출 함수
 async function callTranslationAPI(texts, lang) {
-  //console.log(2);
-  //console.log(JSON.stringify({ strs: texts, language: lang }));
+  console.log(2);
+  console.log(JSON.stringify({ strs: texts, language: lang }));
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 30초 타임아웃
 
-  const response = await fetch('https://translate.kookm.in/translat', {
+  const response = await fetch('http://158.247.199.223:3001/translate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -64,7 +64,10 @@ async function callTranslationAPI(texts, lang) {
     throw new Error('Translation API failed');
   }
   const data = await response.json();
-  //console.log("번역결과");
+  console.log('request에 담은 내용');
+  console.log(JSON.stringify({ strs: texts, language: lang }))
+  console.log("response.body");
+  console.log(data)
   //console.log(data);
   return data;
 }
