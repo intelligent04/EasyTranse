@@ -47,9 +47,9 @@ async function callTranslationAPI(texts, lang) {
   console.log(2);
   console.log(JSON.stringify({ strs: texts, language: lang }));
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 30초 타임아웃
 
-  const response = await fetch('http://158.247.199.223:3001/translate ', {
+  const response = await fetch('http://158.247.199.223:3001/translate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
