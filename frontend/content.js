@@ -61,20 +61,22 @@ function sendForeignTextToBackground(textNodes) {
   });
 }
 
-// 번역된 텍스트를 받아서 페이지에 반영하는 함수
 function applyTranslatedText(textNodes, translatedTexts) {
   console.log("번역된 텍스트");
   console.log(translatedTexts);
   let textIndex = 0;
+
   textNodes.forEach((node) => {
     if (node.content.trim() !== '') {
-      if (node.element) {
+      // node.element가 실제 DOM 요소인지 확인한 후, textContent를 사용하여 텍스트를 교체합니다.
+      if (node.element && node.element.textContent !== undefined) {
         node.element.textContent = translatedTexts[textIndex] || '번역 실패';
         textIndex++;
       }
     }
   });
 }
+
 
 // 메시지 리스너 추가
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
