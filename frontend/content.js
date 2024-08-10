@@ -1,3 +1,6 @@
+if (chrome.sidePanel) {//사이드 패널 지원하면 사이드 패널에 로고 띄워놓기
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+}
 ///// 부분번역
 loadPopupCSS();
 // 텍스트 드래그 시 이벤트 리스너 추가

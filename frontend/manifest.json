@@ -6,7 +6,9 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "contextMenus",
+    "sidePanel"
   ],
   "background": {
     "service_worker": "background.js"
@@ -40,5 +42,8 @@
       "48": "icons/icon48.png"
     }
   },
-  "options_page": "options/options.html"
+  "options_page": "options/options.html",
+  "side_panel": {
+    "default_path": "popup/popup.html"
+  }
 }
