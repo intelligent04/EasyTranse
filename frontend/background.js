@@ -9,10 +9,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // 번역 API를 호출하여 텍스트를 번역
       translateTexts(texts, lang)
         .then((translatedTexts) => {
+          if(message.type === 'originalText'){
           chrome.tabs.sendMessage(sender.tab.id, {
             type: 'TranslatedText',
             data: translatedTexts,
-          });
+          })}
+          else if(message.type === 'TranslateSelectedText'){
+            chrome.tabs.sendMessage(sender.tab.id, {
+              type: 'TranslatedSelectedText',
+              data: translatedTexts,
+            })
+          };
         })
         .catch((error) => {
           console.error('Translation error:', error);

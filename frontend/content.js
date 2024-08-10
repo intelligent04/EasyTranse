@@ -2,8 +2,6 @@
 document.addEventListener('mouseup', function (e) {
   const selectedText = window.getSelection().toString().trim();
   if (selectedText) {
-    // 선택된 텍스트를 팝업창에 표시
-    showTranslationPopup(selectedText);
     console.log("##############")
     console.log([selectedText])
     // 선택된 텍스트를 background.js로 전송
@@ -108,6 +106,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const translatedTexts = message.data.strs;
     let textNodes = getAllTextNodes();
     applyTranslatedText(textNodes, translatedTexts);
+  }
+  else if (message.type === 'TranslatedSelectedText') {
+    const translatedTexts = message.data.strs;
+    showTranslationPopup(translatedTexts);
   }
 });
 
