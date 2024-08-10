@@ -1,3 +1,4 @@
+
 if (chrome.sidePanel) {//사이드 패널 지원하면 사이드 패널에 로고 띄워놓기
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 }
@@ -115,7 +116,7 @@ function getAllTextNodes() {
 }
 
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
-function sendForeignTextToBackground(textNodes) {
+function sendForeignTextToBackground(textNodes,randomKey) {
   const textContents = textNodes.map((node, index) => ({
     index: index,
     content: node.content,
@@ -127,7 +128,7 @@ function sendForeignTextToBackground(textNodes) {
   chrome.runtime.sendMessage({
     type: "originalText",
     data: {
-      originalText: textContents.map((item) => item.content), // 여기서는 원래의 텍스트 내용만 전송
+      originalText: textContents.map((item) => item.content),randomKey: randomKey // 여기서는 원래의 텍스트 내용만 전송
     },
   });
 }
@@ -181,21 +182,32 @@ function applyTranslatedText(textNodes, translatedTexts) {
     }
   }
 }
-
+let cache = {} 
+let randomKey = Math.random().toString(36).substring(2, 12)
 // 메시지 리스너 추가
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TranslatePage") {
     let textNodes = getAllTextNodes();
-    console.log(textNodes);
-    sendForeignTextToBackground(textNodes);
+    cache[randomKey] = textNodes;
+    console.log(cache[randomKey]);
+    sendForeignTextToBackground(textNodes,randomKey);
   } else if (message.type === "TranslatedText") {
+    console.log("randonKey");
+    console.log(randomKey);
+    let textNodes = cache[message.data.randomKey]
     const translatedTexts = message.data.strs;
-    let textNodes = getAllTextNodes();
-    if (textNodes.length !== translatedTexts.length) {
+    console.log('translatedTexts!!!');
+    console.log(translatedTexts);
+    console.log(translatedTexts.strs.length)
+    console.log("textNodes");
+    console.log(textNodes);
+    console.log(textNodes.length); 
+    if (textNodes.length !== translatedTexts.strs.length) {
       console.error("번역된 텍스트의 수가 일치하지 않습니다.");
       return;
     }
     applyTranslatedText(textNodes, translatedTexts);
+    console.log("applyTranslatedText 작동")
   }
   else if (message.type === 'TranslatedSelectedText') {
     const translatedTexts = message.data.strs[0];
