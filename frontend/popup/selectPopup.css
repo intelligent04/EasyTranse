@@ -1,0 +1,45 @@
+/* selectPopup.css */
+
+#translation-popup {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    max-width: 200px;
+    max-height: 150px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    position: absolute;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    z-index: 9999;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+  
+  #translation-popup::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #ccc transparent transparent transparent;
+  }
+  
+  #translation-popup.show {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  

@@ -1,5 +1,4 @@
 const bannedTagNames = ["SCRIPT", "SVG", "STYLE", "NOSCRIPT", "IFRAME", "OBJECT"];
-
 // 특정 요소를 건너뛸 수 있는지 확인하는 함수
 const canSkip = (el) => {
   return (
@@ -61,7 +60,7 @@ function sendForeignTextToBackground(textNodes) {
   });
 }
 
-
+// 번역된 텍스트를 웹페이지에 적용하는 함수
 function applyTranslatedText(textNodes, translatedTexts) {
   console.log("번역된 텍스트");
   console.log(translatedTexts);
@@ -69,7 +68,6 @@ function applyTranslatedText(textNodes, translatedTexts) {
 
   textNodes.forEach((node) => {
     if (node.content.trim() !== '') {
-      // node.element가 실제 DOM 요소인지 확인한 후, textContent를 사용하여 텍스트를 교체합니다.
       if (node.element && node.element.textContent !== undefined) {
         node.element.textContent = translatedTexts[textIndex] || '번역 실패';
         textIndex++;
@@ -77,7 +75,6 @@ function applyTranslatedText(textNodes, translatedTexts) {
     }
   });
 }
-
 
 // 메시지 리스너 추가
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -90,3 +87,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     applyTranslatedText(textNodes, translatedTexts);
   }
 });
+
+// content.js
+
+document.addEventListener('mouseup', function (e) {
+  const selectedText = window.getSelection().toString().trim();
+  if (selectedText) {
+    showTranslationPopup(selectedText, e.clientX, e.clientY);
+  }
+});
+
+
+
+// 페이지 로드 시 CSS 파일을 로드
+loadPopupCSS();
+ 

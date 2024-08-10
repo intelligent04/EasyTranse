@@ -1,5 +1,5 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'originalText') {
+  if (message.type === 'originalText' || message.type === 'TranslateSelectedText') {
     console.log("background 호출 성공")
     const texts = message.data.originalText;
     chrome.storage.sync.get('language', (data) => {
