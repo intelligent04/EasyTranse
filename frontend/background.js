@@ -2,6 +2,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'originalText' || message.type === 'TranslateSelectedText') {
     console.log("background 호출 성공")
     const texts = message.data.originalText;
+    console.log("texts 출력")
+    console.log(texts)
     chrome.storage.sync.get('language', (data) => {
       const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
       // 번역 API를 호출하여 텍스트를 번역

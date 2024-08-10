@@ -1,3 +1,24 @@
+//드래그 한 부분 번역
+document.addEventListener('mouseup', function (e) {
+  const selectedText = window.getSelection().toString().trim();
+  if (selectedText) {
+    // 선택된 텍스트를 팝업창에 표시
+    showTranslationPopup(selectedText);
+    console.log("##############")
+    console.log([selectedText])
+    // 선택된 텍스트를 background.js로 전송
+    chrome.runtime.sendMessage({
+      type: 'TranslateSelectedText',
+      data: { originalText: [selectedText] }
+    });
+  }
+});
+
+// 페이지 로드 시 CSS 파일을 로드
+loadPopupCSS();
+/////////////////////////////////////////
+//전체번역
+
 const bannedTagNames = ["SCRIPT", "SVG", "STYLE", "NOSCRIPT", "IFRAME", "OBJECT"];
 // 특정 요소를 건너뛸 수 있는지 확인하는 함수
 const canSkip = (el) => {
@@ -52,6 +73,8 @@ function sendForeignTextToBackground(textNodes) {
   const textContents = textNodes.map((node, index) => ({ index: index, content: node.content }));
   console.log("추출된 텍스트");
   console.log(JSON.stringify({ textContents: textContents }));
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+  console.log(textContents.map(item => item.content))
   chrome.runtime.sendMessage({
     type: 'originalText',
     data: {
@@ -88,17 +111,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// content.js
-
-document.addEventListener('mouseup', function (e) {
-  const selectedText = window.getSelection().toString().trim();
-  if (selectedText) {
-    showTranslationPopup(selectedText, e.clientX, e.clientY);
-  }
-});
-
-
-
-// 페이지 로드 시 CSS 파일을 로드
-loadPopupCSS();
  
