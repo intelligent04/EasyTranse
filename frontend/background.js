@@ -14,23 +14,22 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-// 기존 코드는 그대로 유지하고, 다음 부분만 수정
-
-// 메시지 리스너 수정
+// 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'TranslatePage') {
-    let textNodes = getAllTextNodes();
-    sendForeignTextToBackground(textNodes);
-  } else if (message.type === 'TranslatedText') {
-    const translatedTexts = message.data;
-    let textNodes = getAllTextNodes();
-    applyTranslatedText(textNodes, translatedTexts);
+  if (message.type === 'originalText' || message.type === 'TranslateSelectedText') {
+    console.log("message!")
+    console.log(message)
+    handleTranslation(message, sender.tab.id, message.data.randomKey);
+  } else if (message.type === 'LanguageChanged') {
+    // 언어 변경 처리 (기존 코드 유지)
+    chrome.storage.sync.set({ language: message.language }, () => {
+      console.log('Language updated to:', message.language);
+    });
   }
-  // 나머지 부분은 그대로 유지
 });
 
 // 번역 처리 함수
-function handleTranslation(message, tabId) {
+function handleTranslation(message, tabId, randomKey) {
   console.log("번역 처리 시작");
   const texts = message.data.originalText;
   console.log("번역할 텍스트:", texts);
@@ -41,7 +40,7 @@ function handleTranslation(message, tabId) {
       .then((translatedTexts) => {
         chrome.tabs.sendMessage(tabId, {
           type: 'TranslatedText',
-          data: translatedTexts,
+          data: {strs:translatedTexts, randomKey:randomKey},
         });
       })
       .catch((error) => {
