@@ -17,6 +17,16 @@
       "js": ["popup/selectPopup.js", "content.js"]
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/icon48.png",
+        "icons/close.png",
+        "popup/selectPopup.css"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
