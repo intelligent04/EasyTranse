@@ -15,10 +15,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             data: translatedTexts,
           })}
           else if(message.type === 'TranslateSelectedText'){
+            console.log("백그라운드에서 콘텐츠로 부분번역 텍스트 전송")
             chrome.tabs.sendMessage(sender.tab.id, {
               type: 'TranslatedSelectedText',
               data: translatedTexts,
-            })
+            }
+          )
           };
         })
         .catch((error) => {

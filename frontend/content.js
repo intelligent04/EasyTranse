@@ -1,19 +1,15 @@
-//드래그 한 부분 번역
-document.addEventListener('mouseup', function (e) {
+///// 부분번역
+loadPopupCSS();
+// 텍스트 드래그 시 이벤트 리스너 추가
+document.addEventListener('mouseup', function() {
   const selectedText = window.getSelection().toString().trim();
   if (selectedText) {
-    console.log("##############")
-    console.log([selectedText])
-    // 선택된 텍스트를 background.js로 전송
     chrome.runtime.sendMessage({
       type: 'TranslateSelectedText',
-      data: { originalText: [selectedText] }
-    });
+      data: { originalText: [selectedText] }  // 배열로 변경
+  });
   }
 });
-
-// 페이지 로드 시 CSS 파일을 로드
-loadPopupCSS();
 /////////////////////////////////////////
 //전체번역
 
@@ -108,7 +104,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     applyTranslatedText(textNodes, translatedTexts);
   }
   else if (message.type === 'TranslatedSelectedText') {
-    const translatedTexts = message.data.strs;
+    const translatedTexts = message.data.strs[0];
     showTranslationPopup(translatedTexts);
   }
 });
