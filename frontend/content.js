@@ -50,16 +50,17 @@ function getAllTextNodes() {
 
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
 function sendForeignTextToBackground(textNodes) {
-  const textContents = textNodes.map(node => node.content);
+  const textContents = textNodes.map((node, index) => ({ index: index, content: node.content }));
   console.log("추출된 텍스트");
   console.log(JSON.stringify({ textContents: textContents }));
   chrome.runtime.sendMessage({
     type: 'originalText',
     data: {
-      originalText: textContents,
+      originalText: textContents.map(item => item.content),  // 여기서는 원래의 텍스트 내용만 전송
     }
   });
 }
+
 
 function applyTranslatedText(textNodes, translatedTexts) {
   console.log("번역된 텍스트");
