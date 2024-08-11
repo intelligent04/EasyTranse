@@ -95,3 +95,21 @@ async function callTranslationAPI(texts, lang) {
   //console.log(data);
   return data;
 }
+
+
+// background.js에 추가
+
+self.addEventListener('fetch', (event) => {
+  const preloadPromise = event.preloadResponse;
+  event.waitUntil(
+      preloadPromise.then(response => {
+          if (response) {
+              return response;
+          }
+          return fetch(event.request);
+      }).catch(error => {
+          console.error('Preload response failed:', error);
+          return fetch(event.request);
+      })
+  );
+});
