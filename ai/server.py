@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 @app.route("/translate", methods=["POST"])
 async def translate():
-    data = await request.get_json()
+    data = request.get_json()
     translation = await translate_text(data)
     return jsonify(translation)
 
