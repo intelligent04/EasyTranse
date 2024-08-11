@@ -8,15 +8,12 @@ from typing import Dict
 import os
 from dotenv import load_dotenv
 import json
-from langchain_openai import ChatOpenAI
 
 from divide_into_five import divide_into_five
 from divide_into_five import WordDict
 
-
-# json output parser implementation
 class TranslatedDictionary(RootModel):
-    root: Dict[str, str] = Field(description="The translated dictionary")
+    root: Dict[str, str] = Field(default_factory=dict, description="The translated phrases")
 
 
 def create_translator():
@@ -30,14 +27,19 @@ def create_translator():
 
     system_prompt_str = """
     You are a professional translator.
-    You are translating short and independent phrases that appear on a website interface, including buttons, labels, and navigation elements.
-    Each phrase must be translated **exactly** as it is provided, without any additional interpretation, context, or meaning. Your translation should be literal, preserving the exact words and structure of the original text.
-    **Do not** change the meaning of the phrases, infer additional information, or attempt to create a context. Translate only what is explicitly written.
+    Translate the following numbered phrases into {target_language}.
+    Only translate the text after the colon (:) in each line. Do not translate or modify the numbers or any JSON syntax.
+    Return your translations in the same numbered format, enclosed in a JSON object like this:
+    {{"0": "translated text 0", "1": "translated text 1", ...}}
+    Each phrase must be translated exactly as it is provided, without any additional interpretation, context, or meaning.
+    Your translation should be literal, preserving the exact words and structure of the original text.
+    Do not change the meaning of the phrases, infer additional information, or attempt to create a context.
+    Translate only what is explicitly written.
     These phrases are independent of each other, so treat each one as a standalone translation.
-    Each phrase must be returned as a key-value pair in a JSON object, where the key is a sequential integer starting from 0, and the value is the translated phrase.
-    Only use parentheses to include the original text when translating proper nouns, names, technical terms, or specific words that should not be translated. Use parentheses sparingly and only when absolutely necessary.
-    **Preserve any HTML tags such as <span> exactly as they are. Do not alter, add, or remove any characters, words, or line breaks that are not present in the original text.**
-    
+    Only use parentheses to include the original text when translating proper nouns, names, technical terms, or specific words that should not be translated.
+    Use parentheses sparingly and only when absolutely necessary.
+    Preserve any HTML tags such as <span> exactly as they are. Do not alter, add, or remove any characters, words, or line breaks that are not present in the original text.
+
     Here are examples of correct translations:
     
     Example 1:
@@ -63,12 +65,12 @@ def create_translator():
     Example 6:
     - Original: <a>배드민턴협회, 진상조사위 구성…'부상 관리 소홀'엔 적극 반박</a>
     - Correct translation: <a>Badminton Association forms fact-finding committee... strongly refutes 'negligence in injury management'</a>
-    """.strip()
+    """
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt_str),
         HumanMessagePromptTemplate.from_template(
-            "Translate the following dictionary values into {target_language}:\n\n{input_dict}"
+            "Translate the following phrases:\n\n{numbered_texts}"
         )
     ])
 
@@ -77,25 +79,36 @@ def create_translator():
     chain = RunnablePassthrough() | prompt | llm | parser
 
     async def translate(input_dict, target_language):
-        # input_dict가 WordDict 타입인 경우
         if isinstance(input_dict, WordDict):
             input_dict = input_dict.to_dict()
+        
+        # 번역할 텍스트 값만 추출
+        texts_to_translate = list(input_dict.values())
+        
+        # LLM을 위한 간단한 번호 목록 생성
+        numbered_texts = "\n".join(f"{i}: {text}" for i, text in enumerate(texts_to_translate))
+        
+        try:
+            result = await asyncio.to_thread(chain.invoke, {
+                "numbered_texts": numbered_texts,
+                "target_language": target_language
+            })
             
-        pretty_json = json.dumps(input_dict, indent=4, ensure_ascii=False)
-    
-        # 줄바꿈 문자를 다른 문자로 치환
-        # 예: "\n"을 "\\n"으로 치환
-        single_line_json = pretty_json.replace("\n", "\\n")
-        
-        json_lines = single_line_json.split("\\n")
-        
-        # 한 줄에 하나씩 리스트 요소 배열 -> ai 가독성 좋아짐
-        formatted_json = json.dumps(json_lines, ensure_ascii=False)
-        
-        result = await asyncio.to_thread(chain.invoke, {"input_dict": formatted_json, "target_language": target_language})
-        return result.root
+            if result is None or not isinstance(result.root, dict):
+                raise ValueError("LLM에서 예상치 못한 출력값을 받았습니다.")
+            
+            # 결과를 후처리하여 원래 구조를 복원
+            translated_dict = {}
+            for key, value in zip(input_dict.keys(), result.root.values()):
+                translated_dict[key] = value.strip()
+            
+            return translated_dict
+        except Exception as e:
+            print(f"번역 중 오류 발생: {e}")
+            # 오류 발생 시 번역되지 않은 원본 딕셔너리를 반환
+            return input_dict
 
-    return translate
+    return translate  # translate 함수 반환
 
 
 async def translate_text(input_dict: dict) -> dict:
@@ -111,351 +124,13 @@ async def translate_text(input_dict: dict) -> dict:
     translated_dicts = await asyncio.gather(*tasks)
 
     translated_texts = []
-    # translated_dicts는 [{'0': '...', '1': '...'}, {'0': '...', '1': '...'}, ...] 형태입니다.
     for translated_dict in translated_dicts:
-        # 각 딕셔너리의 값을 순서대로 리스트에 추가
-        for key in translated_dict.keys():
-            translated_texts.append(translated_dict[key])
+        translated_texts.extend(translated_dict.values())
 
     result = {"strs": translated_texts, "language": target_language}
     return result
 
 if __name__ == "__main__":
-    # example
-    # texts = [
-    #     "When and Why you should apply Tensor Parallel",
-    #     "The PyTorch Fully Sharded Data Parallel (FSDP) already has the capability to scale model training to a specific number of GPUs. However, when it comes to further scale the model training in terms of model size and GPU quantity, many additional challenges arise that may require combining Tensor Parallel with FSDP.",
-    #     "As the world size (number of GPUs) is becoming excessively large (exceeding 128/256 GPUs), the FSDP collectives (such as allgather) are being dominated by ring latency. By implementing TP/SP on top of FSDP, the FSDP world size could be reduced by 8 by applying FSDP to be inter-host only, consequently decreasing the latency costs by the same amount.",
-    #     "Hit data parallelism limit where you can not raise the global batch size to be above the number of GPUs due to both convergence and GPU memory limitations, Tensor/Sequence Parallel is the only known way to \"ballpark\" the global batch size and continue scaling with more GPUs. This means both model size and number of GPUs could continue to scale.",
-    #     "For certain types of models, when local batch size becomes smaller, TP/SP can yield matrix multiplication shapes that are more optimized for floating point operations (FLOPS).",
-    #     "So, when pre-training, how easy is it to hit those limits? As of now, pre-training a Large Language Model (LLM) with billions or trillions of tokens could take months, even when using thousands of GPUs.",
-    #     "How to apply Tensor Parallel",
-    #     "PyTorch Tensor Parallel APIs offers a set of module level primitives (ParallelStyle) to configure the sharding for each individual layers of the model, including:",
-    #     "ColwiseParallel and RowwiseParallel: Shard the nn.Linear and nn.Embedding in the column or row fashion.",
-    #     "SequenceParallel: Perform sharded computations on nn.LayerNorm, nn.Dropout, RMSNormPython, etc.",
-    #     "PrepareModuleInput and PrepareModuleOutput: Configure the module inputs/outputs sharding layouts with proper communication operations.",
-    #     "To demonstrate how to use the PyTorch native Tensor Parallel APIs, let us look at a common Transformer model. In this tutorial, we use the most recent Llama2 model as a reference Transformer model implementation, as it is also widely used in the community.",
-    #     "Since Tensor Parallel shard individual tensors over a set of devices, we would need to set up the distributed environment (such as NCCL communicators) first. Tensor Parallelism is a Single-Program Multiple-Data (SPMD) sharding algorithm similar to PyTorch DDP/FSDP, and it under the hood leverages the PyTorch DTensor to perform sharding. It also utilizes the DeviceMesh abstraction (which under the hood manages ProcessGroups) for device management and sharding. To see how to utilize DeviceMesh to set up multi-dimensional parallelisms, please refer to this tutorial. Tensor Parallel usually works within each host, so let us first initialize a DeviceMesh that connects 8 GPUs within a host."
-    # ]
-    # target_language = "Korean"
-
-    # # 들어오는 형태 : dict
-    # # input_dict = {"strs": texts, "language": target_language}
-    
-    # input_dict = {
-    # "language": "en",
-    # "strs": [
-    #         "상단영역 바로가기",
-    #         "서비스 메뉴 바로가기",
-    #         "새소식 블록 바로가기",
-    #         "쇼핑 블록 바로가기",
-    #         "관심사 블록 바로가기",
-    #         "MY 영역 바로가기",
-    #         "위젯 보드 바로가기",
-    #         "보기 설정 바로가기",
-    #         "NAVER",
-    #         "검색",
-    #         "검색",
-    #         "입력도구",
-    #         "자동완성/최근검색어펼치기",
-    #         "최근검색어",
-    #         "전체삭제",
-    #         "검색어 저장 기능이 꺼져 있습니다.<span>설정이 초기화 된다면 도움말을 확인해 주세요.</span>",
-    #         "최근 검색어 내역이 없습니다.<span>설정이 초기화 된다면 도움말을 확인해 주세요.</span>",
-    #         "자동저장 끄기",
-    #         "도움말",
-    #         "<span>닫기</span>",
-    #         "CUE",
-    #         "이 정보가 표시된 이유",
-    #         "검색어와 포함된 키워드를 기반으로 AI 기술을 활용하여 연관된 추천 질문을 제공합니다.",
-    #         "레이어 닫기",
-    #         "이전",
-    #         "다음",
-    #         "자세히보기",
-    #         "도움말",
-    #         "컨텍스트 자동완성",
-    #         "컨텍스트 자동완성",
-    #         "ON/OFF 설정은 해당기기(브라우저)에 저장됩니다.",
-    #         "자세히 보기",
-    #         "자세히 보기",
-    #         "네이버",
-    #         "컨텍스트 자동완성 레이어 닫기",
-    #         "자동완성 끄기",
-    #         "도움말",
-    #         "신고",
-    #         "<span>닫기</span>",
-    #         "메일",
-    #         "카페",
-    #         "블로그",
-    #         "쇼핑",
-    #         "뉴스",
-    #         "증권",
-    #         "부동산",
-    #         "지도",
-    #         "웹툰",
-    #         "치지직",
-    #         "바로가기 펼침",
-    #         "확장 영역",
-    #         "페이 바로가기",
-    #         "톡",
-    #         "알림",
-    #         "장바구니",
-    #         "알림",
-    #         "뉴스스탠드",
-    #         "언론사편집",
-    #         "엔터",
-    #         "LIVE",
-    #         "경제",
-    #         "쇼핑투데이",
-    #         "연합뉴스",
-    #         "<a>배드민턴협회, 진상조사위 구성…'부상 관리 소홀'엔 적극 반박</a>",
-    #         "<a>우상혁, 예선 공동 3위…한국 육상 트랙&amp;필드 최초 2연속 결선행</a>",
-    #         "뉴스스탠드",
-    #         "뉴스홈",
-    #         "리스트형",
-    #         "썸네일형",
-    #         "이전 페이지",
-    #         "<span>언론사 더보기</span><span>1페이지</span><span>전체/4</span>",
-    #         "다음 페이지",
-    #         "추천<em>・</em>구독",
-    #         "자동차",
-    #         "웹툰",
-    #         "패션뷰티",
-    #         "레시피",
-    #         "리빙",
-    #         "책방",
-    #         "지식+",
-    #         "건강",
-    #         "게임",
-    #         "AD",
-    #         "BMW 시승신청",
-    #         "시승 가능한 모델을 버튼으로 확인하세요!",
-    #         "AD",
-    #         "볼보 시승신청",
-    #         "시승 가능한 모델을 버튼으로 확인하세요!",
-    #         "AD",
-    #         "지프 시승신청",
-    #         "시승 가능한 모델을 버튼으로 확인하세요!",
-    #         "AD",
-    #         "르노 시승신청",
-    #         "시승 가능한 모델을 버튼으로 확인하세요!",
-    #         "AD",
-    #         "푸조 시승신청",
-    #         "시승 가능한 모델을 버튼으로 확인하세요!",
-    #         "AD",
-    #         "BYD 시승신청",
-    #         "시승 가능한 모델을 버튼으로 확인하세요!",
-    #         "네이버 마이카",
-    #         "돌고 도는 정비 주기들,",
-    #         "이제 외울 필요 없어요!",
-    #         "다음 페이지",
-    #         "\"비교 불가능한 존재감\" GMC 풀사이즈 픽업 '시에라'",
-    #         "지피코리아",
-    #         "중국 광저우 아이온, 하이퍼카 브랜드 '하이프텍'으로 브랜드명 변경",
-    #         "글로벌오토뉴스",
-    #         "람보르기니 최초의 플러그인 하이브리드 SUV, 우루스 SE",
-    #         "카테크",
-    #         "[모플시승] 인생을 함께 하는 차, 쉐보레 SUV & CUV",
-    #         "모터플렉스 포스트",
-    #         "[디자인칼럼] 정말로 중요한 운전석의 인터페이스 디자인",
-    #         "글로벌오토뉴스",
-    #         "[시승] 더 뉴 EV6, 충전 없이 500km 이상도 거뜬!",
-    #         "카피엔스",
-    #         "아우디 코리아, 24년식 아우디 A6 출시!",
-    #         "모토야",
-    #         "\"모하비 대신 출시됐으면\" 기아, '텔루라이드 풀체인지' 예상도 최초 등장",
-    #         "M Today",
-    #         "프로필 설정",
-    #         "이총명",
-    #         "네이버ID",
-    #         "로그인 보호 설정",
-    #         "dlchdaud04@naver.com",
-    #         "네이버 플러스 멤버십",
-    #         "시작하기",
-    #         "쪽지 <span>0</span>",
-    #         "로그아웃",
-    #         "메일",
-    #         "21",
-    #         "카페",
-    #         "블로그",
-    #         "페이",
-    #         "MYBOX",
-    #         "포스트",
-    #         "설정",
-    #         "이전",
-    #         "다음",
-    #         "메뉴 순서를 변경해 보세요.",
-    #         "자주 사용하는 순서대로 아래 메뉴 버튼을 클릭하세요.",
-    #         "메일",
-    #         "카페",
-    #         "블로그",
-    #         "페이",
-    #         "MYBOX",
-    #         "포스트",
-    #         "기상특보",
-    #         "서울(동북권) 폭염경보",
-    #         "날씨",
-    #         "예보 비교",
-    #         "서울시 동선동5가",
-    #         "맑음",
-    #         "<span>최저기온27°</span><span>최고기온33°</span>",
-    #         "미세<span>좋음</span>",
-    #         "초미세<span>좋음</span>",
-    #         "22시",
-    #         "맑음",
-    #         "27°",
-    #         "0",
-    #         "맑음",
-    #         "28°",
-    #         "2",
-    #         "맑음",
-    #         "27°",
-    #         "4",
-    #         "비",
-    #         "27°",
-    #         "6",
-    #         "흐림",
-    #         "26°",
-    #         "증시",
-    #         "정보 더보기",
-    #         "닫기",
-    #         "새로고침",
-    #         "유로스톡스50",
-    #         "4,640.66",
-    #         "상승",
-    #         "+1.43%",
-    #         "독일",
-    #         "17,536.68",
-    #         "상승",
-    #         "+1.05%",
-    #         "관심 종목이 없습니다.새로운 종목을 추가해 보세요!",
-    #         "종목 추가",
-    #         "위젯 보드",
-    #         "캘린더",
-    #         "캘린더잠금",
-    #         "수",
-    #         "공휴일",
-    #         "일정있음",
-    #         "0",
-    #         "캘린더",
-    #         "일",
-    #         "월",
-    #         "화",
-    #         "수",
-    #         "목",
-    #         "금",
-    #         "토",
-    #         "28",
-    #         "29",
-    #         "30",
-    #         "31",
-    #         "1",
-    #         "2",
-    #         "3",
-    #         "4",
-    #         "5",
-    #         "6",
-    #         "7",
-    #         "8",
-    #         "9",
-    #         "10",
-    #         "11",
-    #         "12",
-    #         "13",
-    #         "14",
-    #         "15",
-    #         "16",
-    #         "17",
-    #         "18",
-    #         "19",
-    #         "20",
-    #         "21",
-    #         "22",
-    #         "23",
-    #         "24",
-    #         "25",
-    #         "26",
-    #         "27",
-    #         "28",
-    #         "29",
-    #         "30",
-    #         "31",
-    #         "VIBE",
-    #         "호텔라운지 음악",
-    #         "다른 추천 보기",
-    #         "빛날 바램",
-    #         "재생",
-    #         "비 온 뒤",
-    #         "재생",
-    #         "해지기 전",
-    #         "재생",
-    #         "메모",
-    #         "메모잠금",
-    #         "잠금 상태입니다.",
-    #         "버튼을 눌러 잠금을 해제할 수 있어요.",
-    #         "새 메모 쓰기",
-    #         "papago",
-    #         "번역하기",
-    #         "영어사전",
-    #         "I bet the place will be packed.",
-    #         "보나 마나 거기 엄청 붐빌 거야.",
-    #         "단어 검색하기",
-    #         "다음 페이지",
-    #         "모바일 네이버 메인",
-    #         "강세일: 네이버쇼핑 최강세일 기간",
-    #         "강력 할인에 강력 쿠폰 혜택까지!",
-    #         "최상단으로 이동",
-    #         "홈 설정",
-    #         "모바일 버전으로 보기",
-    #         "<a>공지사항</a>",
-    #         "네이버 검색 Referer 정책 변경 안내 드립니다. ",
-    #         "서비스 전체보기",
-    #         "Partners",
-    #         "프로젝트 꽃",
-    #         "네이버 비즈니스",
-    #         "네이버 비즈니스 스쿨",
-    #         "네이버 광고",
-    #         "스토어 개설",
-    #         "지역업체 등록",
-    #         "엑스퍼트 등록",
-    #         "Developers",
-    #         "네이버 개발자 센터",
-    #         "오픈 API",
-    #         "오픈소스",
-    #         "네이버 D2",
-    #         "네이버 D2SF",
-    #         "네이버 랩스",
-    #         "웨일 브라우저",
-    #         "이용안내",
-    #         "기업 사이트",
-    #         "바로가기",
-    #         "네이버 정책 및 약관",
-    #         "<a>회사소개</a>",
-    #         "<a>인재채용</a>",
-    #         "<a>제휴제안</a>",
-    #         "<a>이용약관</a>",
-    #         "<a>개인정보처리방침</a>",
-    #         "<a>청소년보호정책</a>",
-    #         "<a>네이버 정책</a>",
-    #         "<a>고객센터</a>",
-    #         "<a>ⓒ NAVER Corp.</a>",
-    #         "이미지 하이라이트",
-    #         "하이라이트",
-    #         "사용하지 않기",
-    #         "삭제",
-    #         "Important",
-    #         "Important",
-    #         "Important",
-    #         "Important",
-    #         "Important",
-    #         "Important",
-    #         "색상 변경",
-    #         "메모 작성",
-    #         "내 하이라이트로 이동",
-    #         "×"
-    #     ]
-    # }
-
-    input_dict = {"strs":["뉴스스탠드언론사편집\n엔터\n스포츠LIVE\n경제\n쇼핑투데이"],"language":"en"}
+    input_dict = {"strs":["Join us in Silicon Valley September 18-19 at the 2024 PyTorch Conference.<a>Learn more</a>.","Learn","Get Started","Run PyTorch locally or get started quickly with one of the supported cloud platforms","Tutorials","Whats new in PyTorch tutorials","Learn the Basics","Familiarize yourself with PyTorch concepts and modules","PyTorch Recipes","Bite-size, ready-to-deploy PyTorch code examples","Intro to PyTorch - YouTube Series","Master PyTorch basics with our engaging YouTube tutorial series","Ecosystem","Tools","Learn about the tools and frameworks in the PyTorch Ecosystem","Community","Join the PyTorch developer community to contribute, learn, and get your questions answered.","Forums","A place to discuss PyTorch code, issues, install, research","Developer Resources","Find resources and get questions answered","Contributor Awards - 2023","Award winners announced at this year's PyTorch Conference","Edge","About PyTorch Edge","Build innovative and privacy-aware AI experiences for edge devices","ExecuTorch","End-to-end solution for enabling on-device inference capabilities across mobile and edge devices","Docs","PyTorch","Explore the documentation for comprehensive guidance on how to use PyTorch.","PyTorch Domains","Read the PyTorch Domains documentation to learn more about domain-specific libraries.","Blog &amp; News","PyTorch Blog","Catch up on the latest technical news and happenings","Community Blog","Stories from the PyTorch ecosystem","Videos","Learn about the latest PyTorch tutorials, new, and more","Community Stories","Learn how our community solves real, everyday machine learning problems with PyTorch","Events","Find events, webinars, and podcasts","About","PyTorch Foundation","Learn more about the PyTorch Foundation.","<span>Governing Board</span>","<a>Become a Member</a>","X","Get Started","Select preferences and run the command to install PyTorch locally, or\n          get started quickly with one of the supported cloud platforms.","Start Locally","PyTorch 2.0","Start via Cloud Partners","Previous PyTorch Versions","ExecuTorch","Shortcuts","<a>Prerequisites</a>","<a>macOS Version</a>","<a>Python</a>","<a>Package Manager</a>","<a>Installation</a>","<a>Anaconda</a>","<a>pip</a>","<a>Verification</a>","<a>Building from source</a>","<a>Prerequisites</a>","<a>Prerequisites</a>","<a>Supported Linux Distributions</a>","<a>Python</a>","<a>Package Manager</a>","<a>Installation</a>","<a>Anaconda</a>","<a>pip</a>","<a>Verification</a>","<a>Building from source</a>","<a>Prerequisites</a>","<a>Prerequisites</a>","<a>Supported Windows Distributions</a>","<a>Python</a>","<a>Package Manager</a>","<a>Installation</a>","<a>Anaconda</a>","<a>pip</a>","<a>Verification</a>","<a>Building from source</a>","<a>Prerequisites</a>","Start Locally","Select your preferences and run the install command. Stable represents the most currently tested and supported version of PyTorch. This should\n   be suitable for many users. Preview is available if you want the latest, not fully tested and supported, builds that are generated nightly.\n   Please ensure that you have<b>met the prerequisites below (e.g., numpy)</b>,  depending on your package manager. Anaconda is our recommended\n   package manager since it installs all dependencies. You can also<a>install previous versions of PyTorch</a>. Note that LibTorch is only available for C++.","<b>NOTE:</b>Latest PyTorch requires Python 3.8 or later.","PyTorch Build","Your OS","Package","Language","Compute Platform","Run this Command:","PyTorch Build","Stable (2.4.0)","Preview (Nightly)","Your OS","Linux","Mac","Windows","Package","Conda","Pip","LibTorch","Source","Language","Python","C++ / Java","Compute Platform","CUDA 11.8","CUDA 12.1","CUDA 12.4","ROCm 6.1","CPU","Run this Command:","pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118","","Installing on macOS","PyTorch can be installed and used on macOS. Depending on your system and GPU capabilities, your experience with PyTorch on a Mac may vary in terms of processing time.","Prerequisites","macOS Version","PyTorch is supported on macOS 10.15 (Catalina) or above.","Python","It is recommended that you use Python 3.8 - 3.11.\nYou can install Python either through the Anaconda\npackage manager (see<a>below</a>),<a>Homebrew</a>, or\nthe<a>Python website</a>.","In one of the upcoming PyTorch releases, support for Python 3.8 will be deprecated.","Package Manager","To install the PyTorch binaries, you will need to use one of two supported package managers:<a>Anaconda</a>or<a>pip</a>. Anaconda is the recommended package manager as it will provide you all of the PyTorch dependencies in one, sandboxed install, including Python.","Anaconda","To install Anaconda, you can<a>download graphical installer</a>or use the command-line installer. If you use the command-line installer, you can right-click on the installer link, select<code>Copy Link Address</code>, or use the following commands on Intel Mac:","<code>&lt;span&gt;# The version of Anaconda may be different depending on when you are installing`&lt;/span&gt;curl&lt;span&gt;-O&lt;/span&gt;https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh<br>sh Miniconda3-latest-MacOSX-x86_64.sh&lt;span&gt;# and follow the prompts. The defaults are generally good.`&lt;/span&gt;</code>","or following commands on M1 Mac:","<code>&lt;span&gt;# The version of Anaconda may be different depending on when you are installing`&lt;/span&gt;curl&lt;span&gt;-O&lt;/span&gt;https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh<br>sh Miniconda3-latest-MacOSX-arm64.sh&lt;span&gt;# and follow the prompts. The defaults are generally good.`&lt;/span&gt;</code>","pip","<em>Python 3</em>","If you installed Python via Homebrew or the Python website,<code>pip</code>was installed with it. If you installed Python 3.x, then you will be using the command<code>pip3</code>.","Tip: If you want to use just the command<code>pip</code>, instead of<code>pip3</code>, you can symlink<code>pip</code>to the<code>pip3</code>binary.","Installation","Anaconda","To install PyTorch via Anaconda, use the following conda command:","<code>conda&lt;span&gt;install&lt;/span&gt;pytorch torchvision&lt;span&gt;-c&lt;/span&gt;pytorch</code>","pip","To install PyTorch via pip, use one of the following two commands, depending on your Python version:","<code>&lt;span&gt;# Python 3.x&lt;/span&gt;pip3&lt;span&gt;install&lt;/span&gt;torch torchvision</code>","Verification","To ensure that PyTorch was installed correctly, we can verify the installation by running sample PyTorch code. Here we will construct a randomly initialized tensor.","<code>&lt;span&gt;import&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;x&lt;/span&gt;&lt;span&gt;=&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;rand&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;5&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;span&gt;3&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;print&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;x&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;</code>","The output should be something similar to:","<code>tensor([[0.3380, 0.3845, 0.3217],<br>        [0.8337, 0.9050, 0.2650],<br>        [0.2979, 0.7141, 0.9069],<br>        [0.1449, 0.1132, 0.1375],<br>        [0.4675, 0.3947, 0.1426]])</code>","Building from source","For the majority of PyTorch users, installing from a pre-built binary via a package manager will provide the best experience. However, there are times when you may want to install the bleeding edge PyTorch code, whether for testing or actual development on the PyTorch core. To install the latest PyTorch code, you will need to<a>build PyTorch from source</a>.","Prerequisites","[Optional] Install<a>Anaconda</a>","Follow the steps described here:<a>https://github.com/pytorch/pytorch#from-source</a>","You can verify the installation as described<a>above</a>.","Installing on Linux","PyTorch can be installed and used on various Linux distributions. Depending on your system and compute requirements, your experience with PyTorch on Linux may vary in terms of processing time. It is recommended, but not required, that your Linux system has an NVIDIA or AMD GPU in order to harness the full power of PyTorch’s<a>CUDA</a><a>support</a>or<a>ROCm</a>support.","Prerequisites","Supported Linux Distributions","PyTorch is supported on Linux distributions that use<a>glibc</a>&gt;= v2.17, which include the following:","<a>Arch Linux</a>, minimum version 2012-07-15","<a>CentOS</a>, minimum version 7.3-1611","<a>Debian</a>, minimum version 8.0","<a>Fedora</a>, minimum version 24","<a>Mint</a>, minimum version 14","<a>OpenSUSE</a>, minimum version 42.1","<a>PCLinuxOS</a>, minimum version 2014.7","<a>Slackware</a>, minimum version 14.2","<a>Ubuntu</a>, minimum version 13.04","The install instructions here will generally apply to all supported Linux distributions. An example difference is that your distribution may support<code>yum</code>instead of<code>apt</code>. The specific examples shown were run on an Ubuntu 18.04 machine.","Python","Python 3.8-3.11 is generally installed by default on any of our supported Linux distributions, which meets our recommendation.","Tip: By default, you will have to use the command<code>python3</code>to run Python. If you want to use just the command<code>python</code>, instead of<code>python3</code>, you can symlink<code>python</code>to the<code>python3</code>binary.","However, if you want to install another version, there are multiple ways:","APT","<a>Python website</a>","If you decide to use APT, you can run the following command to install it:","<code>&lt;span&gt;sudo&lt;/span&gt;apt&lt;span&gt;install&lt;/span&gt;python</code>","If you use<a>Anaconda</a>to install PyTorch, it will install a sandboxed version of Python that will be used for running PyTorch applications.","Package Manager","To install the PyTorch binaries, you will need to use one of two supported package managers:<a>Anaconda</a>or<a>pip</a>. Anaconda is the recommended package manager as it will provide you all of the PyTorch dependencies in one, sandboxed install, including Python.","Anaconda","To install Anaconda, you will use the<a>command-line installer</a>. Right-click on the 64-bit installer link, select<code>Copy Link Location</code>, and then use the following commands:","<code>&lt;span&gt;# The version of Anaconda may be different depending on when you are installing`&lt;/span&gt;curl&lt;span&gt;-O&lt;/span&gt;https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh<br>sh Miniconda3-latest-Linux-x86_64.sh&lt;span&gt;# and follow the prompts. The defaults are generally good.`&lt;/span&gt;</code>","You may have to open a new terminal or re-source your<code>~/.bashrc</code>to get access to the<code>conda</code>command.","pip","<em>Python 3</em>","While Python 3.x is installed by default on Linux,<code>pip</code>is not installed by default.","<code>&lt;span&gt;sudo&lt;/span&gt;apt&lt;span&gt;install&lt;/span&gt;python3-pip</code>","Tip: If you want to use just the command<code>pip</code>, instead of<code>pip3</code>, you can symlink<code>pip</code>to the<code>pip3</code>binary.","Installation","Anaconda","No CUDA/ROCm","To install PyTorch via Anaconda, and do not have a<a>CUDA-capable</a>or<a>ROCm-capable</a>system or do not require CUDA/ROCm (i.e. GPU support), in the above selector, choose OS: Linux, Package: Conda, Language: Python and Compute Platform: CPU.\nThen, run the command that is presented to you.","With CUDA","To install PyTorch via Anaconda, and you do have a<a>CUDA-capable</a>system, in the above selector, choose OS: Linux, Package: Conda and the CUDA version suited to your machine. Often, the latest CUDA version is better.\nThen, run the command that is presented to you.","With ROCm","PyTorch via Anaconda is not supported on ROCm currently. Please use pip instead.","pip","No CUDA","To install PyTorch via pip, and do not have a<a>CUDA-capable</a>or<a>ROCm-capable</a>system or do not require CUDA/ROCm (i.e. GPU support), in the above selector, choose OS: Linux, Package: Pip, Language: Python and Compute Platform: CPU.\nThen, run the command that is presented to you.","With CUDA","To install PyTorch via pip, and do have a<a>CUDA-capable</a>system, in the above selector, choose OS: Linux, Package: Pip, Language: Python and the CUDA version suited to your machine. Often, the latest CUDA version is better.\nThen, run the command that is presented to you.","With ROCm","To install PyTorch via pip, and do have a<a>ROCm-capable</a>system, in the above selector, choose OS: Linux, Package: Pip, Language: Python and the ROCm version supported.\nThen, run the command that is presented to you.","Verification","To ensure that PyTorch was installed correctly, we can verify the installation by running sample PyTorch code. Here we will construct a randomly initialized tensor.","<code>&lt;span&gt;import&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;x&lt;/span&gt;&lt;span&gt;=&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;rand&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;5&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;span&gt;3&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;print&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;x&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;</code>","The output should be something similar to:","<code>tensor([[0.3380, 0.3845, 0.3217],<br>        [0.8337, 0.9050, 0.2650],<br>        [0.2979, 0.7141, 0.9069],<br>        [0.1449, 0.1132, 0.1375],<br>        [0.4675, 0.3947, 0.1426]])</code>","Additionally, to check if your GPU driver and CUDA/ROCm is enabled and accessible by PyTorch, run the following commands to return whether or not the GPU driver is enabled (the ROCm build of PyTorch uses the same semantics at the python API level<a>link</a>, so the below commands should also work for ROCm):","<code>&lt;span&gt;import&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;cuda&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;is_available&lt;/span&gt;&lt;span&gt;()&lt;/span&gt;</code>","Building from source","For the majority of PyTorch users, installing from a pre-built binary via a package manager will provide the best experience. However, there are times when you may want to install the bleeding edge PyTorch code, whether for testing or actual development on the PyTorch core. To install the latest PyTorch code, you will need to<a>build PyTorch from source</a>.","Prerequisites","Install<a>Anaconda</a>or<a>Pip</a>","If you need to build PyTorch with GPU support\na. for NVIDIA GPUs, install<a>CUDA</a>, if your machine has a<a>CUDA-enabled GPU</a>.\nb. for AMD GPUs, install<a>ROCm</a>, if your machine has a<a>ROCm-enabled GPU</a>","Follow the steps described here:<a>https://github.com/pytorch/pytorch#from-source</a>","You can verify the installation as described<a>above</a>.","Installing on Windows","PyTorch can be installed and used on various Windows distributions. Depending on your system and compute requirements, your experience with PyTorch on Windows may vary in terms of processing time. It is recommended, but not required, that your Windows system has an NVIDIA GPU in order to harness the full power of PyTorch’s<a>CUDA</a><a>support</a>.","Prerequisites","Supported Windows Distributions","PyTorch is supported on the following Windows distributions:","<a>Windows</a>7 and greater;<a>Windows 10</a>or greater recommended.","<a>Windows Server 2008</a>r2 and greater","The install instructions here will generally apply to all supported Windows distributions. The specific examples shown will be run on a Windows 10 Enterprise machine","Python","Currently, PyTorch on Windows only supports Python 3.8-3.11; Python 2.x is not supported.","As it is not installed by default on Windows, there are multiple ways to install Python:","<a>Chocolatey</a>","<a>Python website</a>","<a>Anaconda</a>","If you use Anaconda to install PyTorch, it will install a sandboxed version of Python that will be used for running PyTorch applications.","If you decide to use Chocolatey, and haven’t installed Chocolatey yet, ensure that you are running your command prompt as an administrator.","For a Chocolatey-based install, run the following command in an administrative command prompt:","<code>choco&lt;span&gt;install&lt;/span&gt;python</code>","Package Manager","To install the PyTorch binaries, you will need to use at least one of two supported package managers:<a>Anaconda</a>and<a>pip</a>. Anaconda is the recommended package manager as it will provide you all of the PyTorch dependencies in one, sandboxed install, including Python and<code>pip.</code>","Anaconda","To install Anaconda, you will use the<a>64-bit graphical installer</a>for PyTorch 3.x. Click on the installer link and select<code>Run</code>. Anaconda will download and the installer prompt will be presented to you. The default options are generally sane.","pip","If you installed Python by any of the recommended ways<a>above</a>,<a>pip</a>will have already been installed for you.","Installation","Anaconda","To install PyTorch with Anaconda, you will need to open an Anaconda prompt via<code>Start | Anaconda3 | Anaconda Prompt</code>.","No CUDA","To install PyTorch via Anaconda, and do not have a<a>CUDA-capable</a>system or do not require CUDA, in the above selector, choose OS: Windows, Package: Conda and CUDA: None.\nThen, run the command that is presented to you.","With CUDA","To install PyTorch via Anaconda, and you do have a<a>CUDA-capable</a>system, in the above selector, choose OS: Windows, Package: Conda and the CUDA version suited to your machine. Often, the latest CUDA version is better.\nThen, run the command that is presented to you.","pip","No CUDA","To install PyTorch via pip, and do not have a<a>CUDA-capable</a>system or do not require CUDA, in the above selector, choose OS: Windows, Package: Pip and CUDA: None.\nThen, run the command that is presented to you.","With CUDA","To install PyTorch via pip, and do have a<a>CUDA-capable</a>system, in the above selector, choose OS: Windows, Package: Pip and the CUDA version suited to your machine. Often, the latest CUDA version is better.\nThen, run the command that is presented to you.","Verification","To ensure that PyTorch was installed correctly, we can verify the installation by running sample PyTorch code. Here we will construct a randomly initialized tensor.","From the command line, type:","<code>python</code>","then enter the following code:","<code>&lt;span&gt;import&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;x&lt;/span&gt;&lt;span&gt;=&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;rand&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;5&lt;/span&gt;&lt;span&gt;,&lt;/span&gt;&lt;span&gt;3&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;&lt;span&gt;print&lt;/span&gt;&lt;span&gt;(&lt;/span&gt;&lt;span&gt;x&lt;/span&gt;&lt;span&gt;)&lt;/span&gt;</code>","The output should be something similar to:","<code>tensor([[0.3380, 0.3845, 0.3217],<br>        [0.8337, 0.9050, 0.2650],<br>        [0.2979, 0.7141, 0.9069],<br>        [0.1449, 0.1132, 0.1375],<br>        [0.4675, 0.3947, 0.1426]])</code>","Additionally, to check if your GPU driver and CUDA is enabled and accessible by PyTorch, run the following commands to return whether or not the CUDA driver is enabled:","<code>&lt;span&gt;import&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;torch&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;cuda&lt;/span&gt;&lt;span&gt;.&lt;/span&gt;&lt;span&gt;is_available&lt;/span&gt;&lt;span&gt;()&lt;/span&gt;</code>","Building from source","For the majority of PyTorch users, installing from a pre-built binary via a package manager will provide the best experience. However, there are times when you may want to install the bleeding edge PyTorch code, whether for testing or actual development on the PyTorch core. To install the latest PyTorch code, you will need to<a>build PyTorch from source</a>.","Prerequisites","Install<a>Anaconda</a>","Install<a>CUDA</a>, if your machine has a<a>CUDA-enabled GPU</a>.","If you want to build on Windows, Visual Studio with MSVC toolset, and NVTX are also needed. The exact requirements of those dependencies could be found out<a>here</a>.","Follow the steps described here:<a>https://github.com/pytorch/pytorch#from-source</a>","You can verify the installation as described<a>above</a>.","Docs","Access comprehensive developer documentation for PyTorch","View Docs","Tutorials","Get in-depth tutorials for beginners and advanced developers","View Tutorials","Resources","Find development resources and get your questions answered","View Resources","© Copyright The Linux Foundation. The PyTorch Foundation is a project of The Linux Foundation. \n          For web site terms of use, trademark policy and other policies applicable to The PyTorch Foundation please see<a>Linux Foundation Policies</a>. The PyTorch Foundation supports the PyTorch open source \n          project, which has been established as PyTorch Project a Series of LF Projects, LLC. For policies applicable to the PyTorch Project a Series of LF Projects, LLC, \n          please see<a>LF Projects, LLC Policies</a>.<a>Privacy Policy</a>and<a>Terms of Use</a>.","<a>Learn</a>","<a>Get Started</a>","<a>Tutorials</a>","<a>Learn the Basics</a>","<a>PyTorch Recipes</a>","<a>Introduction to PyTorch - YouTube Series</a>","<a>Ecosystem</a>","<a>Tools</a>","<a>Community</a>","<a>Forums</a>","<a>Developer Resources</a>","<a>Contributor Awards - 2023</a>","<a>Edge</a>","<a>About PyTorch Edge</a>","<a>ExecuTorch</a>","<a>Docs</a>","<a>PyTorch</a>","<a>PyTorch Domains</a>","<a>Blog &amp;amp; News</a>","<a>PyTorch Blog</a>","<a>Community Blog</a>","<a>Videos</a>","<a>Community Stories</a>","<a>Events</a>","<a>About</a>","<a>PyTorch Foundation</a>","<a>Governing Board</a>","<a>Become a Member</a>","To analyze traffic and optimize your experience, we serve cookies on this site. By clicking or navigating, you agree to allow our usage of cookies. As the current maintainers of this site, Facebook’s Cookies Policy applies. Learn more, including about available controls:<a>Cookies Policy</a>."],"language":"ko"}
 
     print(asyncio.run(translate_text(input_dict)))
