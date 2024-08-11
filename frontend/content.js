@@ -1,7 +1,3 @@
-
-if (chrome.sidePanel) {//사이드 패널 지원하면 사이드 패널에 로고 띄워놓기
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-}
 ///// 부분번역
 loadPopupCSS();
 // 텍스트 드래그 시 이벤트 리스너 추가
@@ -210,9 +206,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log("applyTranslatedText 작동")
   }
   else if (message.type === 'TranslatedSelectedText') {
-    const translatedTexts = message.data.strs[0];
+    const strsArray = Object.values(message.data.strs.strs);
+    console.log("selected text");
+    console.log(typeof(strsArray[0]));
+    console.log((strsArray[0]));
+    const translatedTexts =strsArray[0];
     showTranslationPopup(translatedTexts);
   }
 });
-
-//

@@ -1,19 +1,3 @@
-// 컨텍스트 메뉴 생성
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "translateWithTM",
-    title: "Translate with Trans Mate",
-    contexts: ["page", "selection"]
-  });
-});
-
-// 컨텍스트 메뉴 클릭 처리
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "translateWithTM") {
-    chrome.tabs.sendMessage(tab.id, { type: 'TranslatePage' });
-  }
-});
-
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'originalText' || message.type === 'TranslateSelectedText') {
@@ -38,10 +22,16 @@ function handleTranslation(message, tabId, randomKey) {
     const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
     translateTexts(texts, lang)
       .then((translatedTexts) => {
+        if (message.type === 'originalText'){
         chrome.tabs.sendMessage(tabId, {
           type: 'TranslatedText',
           data: {strs:translatedTexts, randomKey:randomKey},
-        });
+        })}
+        else if (message.type === 'TranslateSelectedText'){
+          chrome.tabs.sendMessage(tabId, {
+            type: 'TranslatedSelectedText',
+            data: {strs:translatedTexts},
+          })};
       })
       .catch((error) => {
         console.error('Translation error:', error);
