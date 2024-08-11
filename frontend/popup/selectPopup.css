@@ -21,7 +21,7 @@
   margin-bottom: 10px;
   width: 100%; /* 이 줄을 추가 */
   box-sizing: border-box; /* 이 줄을 추가 */
-  padding: 0 10px; /* 좌우 패딩 추가 */
+  padding: 0 3px; /* 좌우 패딩 추가 */
   box-sizing: border-box; /* 헤더의 전체 너비를 조정 */
 }
 
@@ -31,6 +31,8 @@
   margin-right: auto; /* 로고를 헤더 왼쪽에 고정 */
   max-width: 50%; /* 로고 섹션의 최대 너비를 설정 */
   object-fit: contain; /* 이미지가 크기를 벗어나지 않도록 조정 */
+  flex-shrink: 0; /* 로고가 축소되지 않도록 설정 */
+  min-width: 0; /* 로고가 너무 작아지지 않도록 */
 }
 
 #translation-popup .popup-header .logo img {
@@ -44,12 +46,14 @@
   color: #4CAF50;
   font-weight: bold;
   white-space: nowrap; /* 텍스트가 한 줄에 유지되도록 */
+  text-overflow: ellipsis; /* 텍스트가 넘칠 경우 말줄임표 표시 */
 }
 
 #translation-popup .popup-header .controls {
   display: flex;
   align-items: center;
   margin-left: auto; /* 이 줄을 추가하여 오른쪽 정렬 */
+  flex-shrink: 0; /* 컨트롤이 축소되지 않도록 설정 */
 }
 
 #translation-popup .popup-header .controls img {
