@@ -17,17 +17,19 @@
     {
       "matches": ["<all_urls>"],
       "js": ["popup/selectPopup.js", "content.js"],
-      "css": ["popup/selectPopup.css"],
+      "css": ["popup/selectPopup.css","options/options.css"],
       "type": "module"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
+        "icons/icon128.png",
         "icons/icon48.png",
         "icons/close.svg",
         "icons/settings.svg",
-        "popup/selectPopup.css"
+        "popup/selectPopup.css",
+        "options/options.css"
       ],
       "matches": ["<all_urls>"]
     }
