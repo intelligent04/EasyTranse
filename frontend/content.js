@@ -1,21 +1,21 @@
 ///// 부분번역
 function loadPopupCSS() {
-  let link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.type = 'text/css';
-  link.href = chrome.runtime.getURL('popup/selectPopup.css');
+  let link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.type = "text/css";
+  link.href = chrome.runtime.getURL("popup/selectPopup.css");
   document.head.appendChild(link);
 }
 loadPopupCSS();
 // 텍스트 드래그 시 이벤트 리스너 추가
-document.addEventListener('mouseup', function() {
+document.addEventListener("mouseup", function () {
   const selection = window.getSelection();
   const rangeCount = selection.rangeCount;
 
-  let selectedText = '';
+  let selectedText = "";
   for (let i = 0; i < rangeCount; i++) {
-      const range = selection.getRangeAt(i);
-      selectedText += range.toString().trim() + ' ';
+    const range = selection.getRangeAt(i);
+    selectedText += range.toString().trim() + " ";
   }
 
   selectedText = selectedText.trim();
@@ -23,10 +23,10 @@ document.addEventListener('mouseup', function() {
   console.log(selectedText);
 
   if (selectedText) {
-      chrome.runtime.sendMessage({
-          type: 'TranslateSelectedText',
-          data: { originalText: [selectedText] }  // 배열로 변경
-      });
+    chrome.runtime.sendMessage({
+      type: "TranslateSelectedText",
+      data: { originalText: [selectedText] }, // 배열로 변경
+    });
   }
 });
 
@@ -132,19 +132,20 @@ function getAllTextNodes() {
 }
 
 // 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
-function sendForeignTextToBackground(textNodes,randomKey) {
+function sendForeignTextToBackground(textNodes, randomKey) {
   const textContents = textNodes.map((node, index) => ({
     index: index,
     content: node.content,
   }));
   console.log("추출된 텍스트");
   console.log(JSON.stringify({ textContents: textContents }));
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-  console.log(textContents.map(item => item.content))
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  console.log(textContents.map((item) => item.content));
   chrome.runtime.sendMessage({
     type: "originalText",
     data: {
-      originalText: textContents.map((item) => item.content),randomKey: randomKey // 여기서는 원래의 텍스트 내용만 전송
+      originalText: textContents.map((item) => item.content),
+      randomKey: randomKey, // 여기서는 원래의 텍스트 내용만 전송
     },
   });
 }
@@ -190,47 +191,46 @@ function applyTranslatedText(textNodes, translatedTexts) {
 
   for (let i = 0; i < textNodes.length; i++) {
     if (textNodes[i].element.nodeType === Node.TEXT_NODE) {
-      textNodes[i].element.textContent = translatedTexts[i];
+      textNodes[i].element.textContent = translatedTexts.strs[i];
     } else {
       let div = document.createElement("div");
-      div.innerHTML = translatedTexts[i];
+      div.innerHTML = translatedTexts.strs[i];
       applyDfs(textNodes[i].element, div);
     }
   }
 }
-let cache = {} 
-let randomKey = Math.random().toString(36).substring(2, 12)
+let cache = {};
+let randomKey = Math.random().toString(36).substring(2, 12);
 // 메시지 리스너 추가
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TranslatePage") {
     let textNodes = getAllTextNodes();
     cache[randomKey] = textNodes;
     console.log(cache[randomKey]);
-    sendForeignTextToBackground(textNodes,randomKey);
+    sendForeignTextToBackground(textNodes, randomKey);
   } else if (message.type === "TranslatedText") {
     console.log("randonKey");
     console.log(randomKey);
-    let textNodes = cache[message.data.randomKey]
+    let textNodes = cache[message.data.randomKey];
     const translatedTexts = message.data.strs;
-    console.log('translatedTexts!!!');
+    console.log("translatedTexts!!!");
     console.log(translatedTexts);
-    console.log(translatedTexts.strs.length)
+    console.log(translatedTexts.strs.length);
     console.log("textNodes");
     console.log(textNodes);
-    console.log(textNodes.length); 
+    console.log(textNodes.length);
     if (textNodes.length !== translatedTexts.strs.length) {
       console.error("번역된 텍스트의 수가 일치하지 않습니다.");
       return;
     }
     applyTranslatedText(textNodes, translatedTexts);
-    console.log("applyTranslatedText 작동")
-  }
-  else if (message.type === 'TranslatedSelectedText') {
+    console.log("applyTranslatedText 작동");
+  } else if (message.type === "TranslatedSelectedText") {
     const strsArray = Object.values(message.data.strs.strs);
     console.log("selected text");
-    console.log(typeof(strsArray[0]));
-    console.log((strsArray[0]));
-    const translatedTexts =strsArray[0];
+    console.log(typeof strsArray[0]);
+    console.log(strsArray[0]);
+    const translatedTexts = strsArray[0];
     showTranslationPopup(translatedTexts);
   }
 });
