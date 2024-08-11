@@ -1,4 +1,11 @@
 ///// 부분번역
+function loadPopupCSS() {
+  let link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.type = 'text/css';
+  link.href = chrome.runtime.getURL('popup/selectPopup.css');
+  document.head.appendChild(link);
+}
 loadPopupCSS();
 // 텍스트 드래그 시 이벤트 리스너 추가
 document.addEventListener('mouseup', function() {
