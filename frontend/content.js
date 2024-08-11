@@ -9,14 +9,27 @@ function loadPopupCSS() {
 loadPopupCSS();
 // 텍스트 드래그 시 이벤트 리스너 추가
 document.addEventListener('mouseup', function() {
-  const selectedText = window.getSelection().toString().trim();
+  const selection = window.getSelection();
+  const rangeCount = selection.rangeCount;
+
+  let selectedText = '';
+  for (let i = 0; i < rangeCount; i++) {
+      const range = selection.getRangeAt(i);
+      selectedText += range.toString().trim() + ' ';
+  }
+
+  selectedText = selectedText.trim();
+  console.log("selectedText");
+  console.log(selectedText);
+
   if (selectedText) {
-    chrome.runtime.sendMessage({
-      type: 'TranslateSelectedText',
-      data: { originalText: [selectedText] }  // 배열로 변경
-  });
+      chrome.runtime.sendMessage({
+          type: 'TranslateSelectedText',
+          data: { originalText: [selectedText] }  // 배열로 변경
+      });
   }
 });
+
 /////////////////////////////////////////
 //전체번역
 const bannedTagNames = [

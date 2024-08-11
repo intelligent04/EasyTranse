@@ -13,11 +13,8 @@ function showTranslationPopup(translatedTexts) {
                 <div class="title">TransMate</div>
             </div>
             <div class="controls">
-                <select id="language-select">
-                    <option value="ko">한국어</option>
-                    <option value="en">English</option>
-                </select>
-                <img id="close-popup" src="${chrome.runtime.getURL('icons/close.png')}" alt="Close">
+                <img id="settings-button" src="${chrome.runtime.getURL('icons/settings.svg')}" alt="Settings">
+                <img id="close-popup" src="${chrome.runtime.getURL('icons/close.svg')}" alt="Close">
             </div>
         </div>
         <div class="translated-text">${translatedTexts}</div>
@@ -32,4 +29,9 @@ function showTranslationPopup(translatedTexts) {
     document.getElementById('close-popup').addEventListener('click', function() {
         popup.remove();
     });
+
+    document.getElementById('settings-button').addEventListener('click', function() {
+        chrome.runtime.sendMessage({ type: 'openOptionsPage' });
+    });
+    
 }

@@ -1,3 +1,10 @@
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // 옵션버튼 눌렸는지 확인
+  if (message.type === 'openOptionsPage') {
+      chrome.runtime.openOptionsPage();
+  }
+});
+
+
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'originalText' || message.type === 'TranslateSelectedText') {

@@ -25,7 +25,8 @@
     {
       "resources": [
         "icons/icon48.png",
-        "icons/close.png",
+        "icons/close.svg",
+        "icons/settings.svg",
         "popup/selectPopup.css"
       ],
       "matches": ["<all_urls>"]
