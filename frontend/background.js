@@ -4,6 +4,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // 옵
   }
 });
 
+// 컨텍스트 메뉴 생성
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: "translateWithTransMate",
+    title: "Translate with TransMate",
+    contexts: ["page"],
+    icon: {
+      "16": "icons/icon16.png"
+    }
+  });
+});
+
+// 컨텍스트 메뉴 클릭 이벤트 처리
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "translateWithTransMate") {
+    chrome.tabs.sendMessage(tab.id, { type: 'TranslatePage' });
+  }
+});
+
+// ... (기존 코드는 그대로 유지)
 
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
