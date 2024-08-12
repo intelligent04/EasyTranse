@@ -1,3 +1,17 @@
+let isTooltipEnabled = true; // 툴팁 관련
+
+// 설정 변경 시 업데이트
+chrome.storage.sync.get(['tooltipEnabled'], (data) => {
+  isTooltipEnabled = data.tooltipEnabled !== undefined ? data.tooltipEnabled : true;
+});
+
+// 설정 변경 리스너 추가
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'SettingsChanged') {
+    isTooltipEnabled = message.settings.tooltipEnabled;
+  }
+});
+
 ///// 부분번역
 function loadPopupCSS() {
   let link = document.createElement("link");
@@ -7,8 +21,11 @@ function loadPopupCSS() {
   document.head.appendChild(link);
 }
 loadPopupCSS();
+
 // 텍스트 드래그 시 이벤트 리스너 추가
 document.addEventListener("mouseup", function () {
+  if (!isTooltipEnabled) return; // 툴팁 사용이 비활성화되어 있으면 함수 종료
+
   const selection = window.getSelection();
   const rangeCount = selection.rangeCount;
 
@@ -19,13 +36,13 @@ document.addEventListener("mouseup", function () {
   }
 
   selectedText = selectedText.trim();
-  console.log("selectedText");
-  console.log(selectedText);
 
   if (selectedText) {
+    console.log("selectedText");
+    console.log(selectedText);
     chrome.runtime.sendMessage({
       type: "TranslateSelectedText",
-      data: { originalText: [selectedText] }, // 배열로 변경
+      data: { originalText: [selectedText] },
     });
   }
 });

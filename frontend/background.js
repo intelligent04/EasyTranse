@@ -4,14 +4,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // 옵
   }
 });
 
-// 컨텍스트 메뉴 생성
+// 확장 프로그램이 설치되거나 업데이트될 때 실행
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "translateWithTransMate",
     title: "Translate with TransMate",
-    contexts: ["page"],
-    icon: {
-      "16": "icons/icon16.png"
+    contexts: ["page", "selection"]
+  }, () => {
+    if (chrome.runtime.lastError) {
+      console.error("Error creating context menu:", chrome.runtime.lastError);
+    } else {
+      console.log("Context menu created successfully");
     }
   });
 });
