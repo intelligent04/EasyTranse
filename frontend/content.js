@@ -1,5 +1,6 @@
 let isTooltipEnabled = true; // 툴팁 관련
 let miniPopup = null; // 미니 팝업
+
 function createMiniPopup() {
   const popup = document.createElement('div');
   popup.innerHTML = `
@@ -24,14 +25,6 @@ function createMiniPopup() {
   
   return popup.firstElementChild;
 }
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'SettingsChanged') {
-    isTooltipEnabled = message.settings.tooltipEnabled;
-    if (!isTooltipEnabled) {
-      hideMiniPopup(); // 툴팁이 비활성화되면 즉시 미니팝업 숨기기
-    }
-  }
-});
 
 // 설정 변경 시 업데이트
 chrome.storage.sync.get(['tooltipEnabled'], (data) => {
@@ -56,33 +49,20 @@ function loadPopupCSS() {
 loadPopupCSS();
 
 // 텍스트 드래그 시 이벤트 리스너 추가
-function handleSelectTranslate() {
+function handleTranslate() {
+  console.log("handleTranslate");
   const selection = window.getSelection().toString().trim();
-  let selectedText = '';
-
-  if (selection.rangeCount > 0) {
-      for (let i = 0; i < selection.rangeCount; i++) {
-          const range = selection.getRangeAt(i);
-          const treeWalker = document.createTreeWalker(
-              range.cloneContents(),
-              NodeFilter.SHOW_TEXT
-          );
-
-          while (treeWalker.nextNode()) {
-              selectedText += treeWalker.currentNode.nodeValue + ' ';
-          }
-      }
-    }
-  if (selectedText) {
+  if (selection) {
     chrome.runtime.sendMessage({
       type: "TranslateSelectedText",
-      data: { originalText: [selectedText] },
+      data: { originalText: [selection] },
     });
   }
   hideMiniPopup();
 }
 
 function handleToggle() {
+  isTooltipEnabled = false;
   chrome.storage.sync.set({ tooltipEnabled: false }, () => {
     chrome.runtime.sendMessage({ 
       type: 'SettingsChanged', 
@@ -106,16 +86,15 @@ function hideMiniPopup() {
     miniPopup.style.display = 'none';
   }
 }
-document.addEventListener('mouseup', function() {
+document.addEventListener('mouseup', function(e) {
   if (!isTooltipEnabled) return;
   const selection = window.getSelection().toString().trim();
 
   if (selection) {
-    const range = selection.getRangeAt(0);
+    const range = window.getSelection().getRangeAt(0);
     const rect = range.getBoundingClientRect();
-    showMiniPopup(rect.right, rect.bottom + window.scrollY);
-  }
-  else {
+    showMiniPopup(e.clientX, rect.bottom + window.scrollY);
+  } else {
     hideMiniPopup();
   }
 });
