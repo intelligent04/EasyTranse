@@ -1,4 +1,28 @@
 let isTooltipEnabled = true; // 툴팁 관련
+let miniPopup = null; // 미니 팝업
+function createMiniPopup() {
+  const popup = document.createElement('div');
+  popup.innerHTML = `
+    <div id="transmate-mini-popup">
+      <button id="translate-button">
+        <img src="${chrome.runtime.getURL('icons/icon48.png')}" alt="Translate">
+        <h6>translate this text</h6>
+      </button>
+      <button id="toggle-button">
+        <img src="${chrome.runtime.getURL('icons/power.svg')}" alt="Toggle">
+      </button>
+    </div>
+  `;
+  document.body.appendChild(popup);
+  
+  const translateButton = popup.querySelector('#translate-button');
+  const toggleButton = popup.querySelector('#toggle-button');
+  
+  translateButton.addEventListener('click', handleTranslate);
+  toggleButton.addEventListener('click', handleToggle);
+  
+  return popup.firstElementChild;
+}
 
 // 설정 변경 시 업데이트
 chrome.storage.sync.get(['tooltipEnabled'], (data) => {
@@ -23,27 +47,54 @@ function loadPopupCSS() {
 loadPopupCSS();
 
 // 텍스트 드래그 시 이벤트 리스너 추가
-document.addEventListener("mouseup", function () {
-  if (!isTooltipEnabled) return; // 툴팁 사용이 비활성화되어 있으면 함수 종료
-
-  const selection = window.getSelection();
-  const rangeCount = selection.rangeCount;
-
-  let selectedText = "";
-  for (let i = 0; i < rangeCount; i++) {
-    const range = selection.getRangeAt(i);
-    selectedText += range.toString().trim() + " ";
-  }
-
-  selectedText = selectedText.trim();
-
+function handleTranslate() {
+  const selectedText = window.getSelection().toString().trim();
   if (selectedText) {
-    console.log("selectedText");
-    console.log(selectedText);
     chrome.runtime.sendMessage({
       type: "TranslateSelectedText",
       data: { originalText: [selectedText] },
     });
+  }
+  hideMiniPopup();
+}
+
+function handleToggle() {
+  chrome.storage.sync.set({ tooltipEnabled: false }, () => {
+    chrome.runtime.sendMessage({ 
+      type: 'SettingsChanged', 
+      settings: { tooltipEnabled: false } 
+    });
+  });
+  hideMiniPopup();
+}
+
+function showMiniPopup(x, y) {
+  if (!miniPopup) {
+    miniPopup = createMiniPopup();
+  }
+  miniPopup.style.left = `${x}px`;
+  miniPopup.style.top = `${y}px`;
+  miniPopup.style.display = 'flex';
+}
+
+function hideMiniPopup() {
+  if (miniPopup) {
+    miniPopup.style.display = 'none';
+  }
+}
+
+document.addEventListener("mouseup", function(event) {
+  if (!isTooltipEnabled) return;
+
+  const selection = window.getSelection();
+  const selectedText = selection.toString().trim();
+
+  if (selectedText) {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    showMiniPopup(rect.right, rect.bottom + window.scrollY);
+  } else {
+    hideMiniPopup();
   }
 });
 
