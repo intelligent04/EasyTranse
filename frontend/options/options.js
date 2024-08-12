@@ -1,5 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
   // 저장된 언어 설정 불러오기
+  // 슬라이더 설정 불러오기
+  chrome.storage.sync.get(['tooltipEnabled'], (data) => {
+    if (data.tooltipEnabled !== undefined) {
+      document.getElementById('tooltipToggle').checked = data.tooltipEnabled;
+    }
+  });
+  
   const logoImage = document.getElementById('logoImage');
   logoImage.src = chrome.runtime.getURL('icons/icon128.png');
   chrome.storage.sync.get(['language', 'tooltipEnabled'], (data) => {

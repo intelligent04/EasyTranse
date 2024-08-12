@@ -4,22 +4,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // 옵
   }
 });
 
-// Create context menu on extension install
+// 확장 프로그램이 설치되거나 업데이트될 때 실행
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: "translatePage",
-    title: "Translate this page",
-    contexts: ["page"]
+    id: "translateWithTransMate",
+    title: "Translate with TransMate",
+    contexts: ["page", "selection"]
+  }, () => {
+    if (chrome.runtime.lastError) {
+      console.error("Error creating context menu:", chrome.runtime.lastError);
+    } else {
+      console.log("Context menu created successfully");
+    }
   });
 });
 
-// Listen for context menu clicks
+// 컨텍스트 메뉴 클릭 이벤트 처리
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "translatePage") {
-    chrome.tabs.sendMessage(tab.id, { type: "TranslatePage" });
+  if (info.menuItemId === "translateWithTransMate") {
+    chrome.tabs.sendMessage(tab.id, { type: 'TranslatePage' });
   }
 });
 
+// ... (기존 코드는 그대로 유지)
 
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

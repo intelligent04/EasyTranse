@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TransMate",
   "version": "1.0",
-  "description": "웹페이지의 영어 텍스트를 한국어로 자동으로 번역합니다.",
+  "description": "웹페이지의 외국어 텍스트를 모국어로 자동으로 번역합니다.",
   "permissions": [
     "storage",
     "activeTab",
