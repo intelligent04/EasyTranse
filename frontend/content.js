@@ -101,7 +101,7 @@ document.addEventListener("mouseup", function(event) {
   if (selectedText) {
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
-    showMiniPopup(rect.right, rect.bottom + window.scrollY);
+    showMiniPopup(rect.right+100, rect.bottom + window.scrollY+100);
   } else {
     hideMiniPopup();
   }
