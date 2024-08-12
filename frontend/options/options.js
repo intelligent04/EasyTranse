@@ -6,6 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('tooltipToggle').checked = data.tooltipEnabled;
     }
   });
+  // 설정 변경 메시지 리스너 추가
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'SettingsChanged') {
+      if (message.settings.tooltipEnabled !== undefined) {
+        document.getElementById('tooltipToggle').checked = message.settings.tooltipEnabled;
+      }
+    }
+  });
   
   const logoImage = document.getElementById('logoImage');
   logoImage.src = chrome.runtime.getURL('icons/icon128.png');
@@ -20,18 +28,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.getElementById('saveSettings').addEventListener('click', () => {
-  const language = document.getElementById('languageSelect').value;
-  const tooltipEnabled = document.getElementById('tooltipToggle').checked;
-
-  chrome.storage.sync.set({ 
-      language: language,
-      tooltipEnabled: tooltipEnabled
-  }, () => {
-      console.log('Settings saved:', { language, tooltipEnabled });
-      // 설정이 저장된 후 백그라운드 스크립트에 알림
-      chrome.runtime.sendMessage({ 
-          type: 'SettingsChanged', 
-          settings: { language, tooltipEnabled } 
-      });
+    const language = document.getElementById('languageSelect').value;
+    const tooltipEnabled = document.getElementById('tooltipToggle').checked;
+  
+    chrome.storage.sync.set({ 
+        language: language,
+        tooltipEnabled: tooltipEnabled
+    }, () => {
+        console.log('Settings saved:', { language, tooltipEnabled });
+        // 설정이 저장된 후 백그라운드 스크립트에 알림
+        chrome.runtime.sendMessage({ 
+            type: 'SettingsChanged', 
+            settings: { language, tooltipEnabled } 
+        });
+    });
   });
-});

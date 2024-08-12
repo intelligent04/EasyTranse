@@ -8,6 +8,7 @@ function createMiniPopup() {
         <img src="${chrome.runtime.getURL('icons/icon48.png')}" alt="Translate">
         <h6>translate this text</h6>
       </button>
+      <div id="vertical-line"></div>
       <button id="toggle-button">
         <img src="${chrome.runtime.getURL('icons/power.svg')}" alt="Toggle">
       </button>
@@ -23,6 +24,14 @@ function createMiniPopup() {
   
   return popup.firstElementChild;
 }
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'SettingsChanged') {
+    isTooltipEnabled = message.settings.tooltipEnabled;
+    if (!isTooltipEnabled) {
+      hideMiniPopup(); // 툴팁이 비활성화되면 즉시 미니팝업 숨기기
+    }
+  }
+});
 
 // 설정 변경 시 업데이트
 chrome.storage.sync.get(['tooltipEnabled'], (data) => {

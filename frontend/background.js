@@ -38,8 +38,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 언어 변경 처리 (기존 코드 유지)
     chrome.storage.sync.set({ language: message.language }, () => {
       console.log('Language updated to:', message.language);
+    });}
+    else if (message.type === 'SettingsChanged') {
+      // 모든 탭에 설정 변경 메시지 전송
+      chrome.tabs.query({}, (tabs) => {
+        tabs.forEach((tab) => {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'SettingsChanged',
+            settings: message.settings
+          });
+        });
+      });
+      // options 페이지에도 설정 변경 메시지 전송
+    chrome.runtime.sendMessage({
+      type: 'SettingsChanged',
+      settings: message.settings
     });
-  }
+
+
+    }
+  
 });
 
 // 번역 처리 함수
