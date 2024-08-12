@@ -56,8 +56,23 @@ function loadPopupCSS() {
 loadPopupCSS();
 
 // 텍스트 드래그 시 이벤트 리스너 추가
-function handleTranslate() {
-  const selectedText = window.getSelection().toString().trim();
+function handleSelectTranslate() {
+  const selection = window.getSelection().toString().trim();
+  let selectedText = '';
+
+  if (selection.rangeCount > 0) {
+      for (let i = 0; i < selection.rangeCount; i++) {
+          const range = selection.getRangeAt(i);
+          const treeWalker = document.createTreeWalker(
+              range.cloneContents(),
+              NodeFilter.SHOW_TEXT
+          );
+
+          while (treeWalker.nextNode()) {
+              selectedText += treeWalker.currentNode.nodeValue + ' ';
+          }
+      }
+    }
   if (selectedText) {
     chrome.runtime.sendMessage({
       type: "TranslateSelectedText",
@@ -91,36 +106,13 @@ function hideMiniPopup() {
     miniPopup.style.display = 'none';
   }
 }
-
 document.addEventListener('mouseup', function() {
   if (!isTooltipEnabled) return;
-  const selection = window.getSelection();
-  let selectedText = '';
+  const selection = window.getSelection().toString().trim();
 
-  if (selection.rangeCount > 0) {
-      for (let i = 0; i < selection.rangeCount; i++) {
-          const range = selection.getRangeAt(i);
-          const treeWalker = document.createTreeWalker(
-              range.cloneContents(),
-              NodeFilter.SHOW_TEXT
-          );
-
-          while (treeWalker.nextNode()) {
-              selectedText += treeWalker.currentNode.nodeValue + ' ';
-          }
-      }
-  }
-
-  selectedText = selectedText.trim();
-  console.log(selectedText);
-
-  if (selectedText) {
+  if (selection) {
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
-      chrome.runtime.sendMessage({
-          type: 'TranslateSelectedText',
-          data: { originalText: [selectedText] }
-      });
     showMiniPopup(rect.right, rect.bottom + window.scrollY);
   }
   else {
