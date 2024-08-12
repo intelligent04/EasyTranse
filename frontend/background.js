@@ -4,6 +4,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // 옵
   }
 });
 
+// Create context menu on extension install
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: "translatePage",
+    title: "Translate this page",
+    contexts: ["page"]
+  });
+});
+
+// Listen for context menu clicks
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "translatePage") {
+    chrome.tabs.sendMessage(tab.id, { type: "TranslatePage" });
+  }
+});
+
 
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

@@ -1,4 +1,4 @@
-///// 부분번역
+// Load the necessary CSS for the translation popup
 function loadPopupCSS() {
   let link = document.createElement("link");
   link.rel = "stylesheet";
@@ -7,7 +7,8 @@ function loadPopupCSS() {
   document.head.appendChild(link);
 }
 loadPopupCSS();
-// 텍스트 드래그 시 이벤트 리스너 추가
+
+// Event listener for text selection (triggered on mouseup)
 document.addEventListener("mouseup", function () {
   const selection = window.getSelection();
   const rangeCount = selection.rangeCount;
@@ -19,90 +20,98 @@ document.addEventListener("mouseup", function () {
   }
 
   selectedText = selectedText.trim();
-  console.log("selectedText");
-  console.log(selectedText);
-
   if (selectedText) {
     chrome.runtime.sendMessage({
       type: "TranslateSelectedText",
-      data: { originalText: [selectedText] }, // 배열로 변경
+      data: { originalText: [selectedText] }
     });
   }
 });
 
-/////////////////////////////////////////
-//전체번역
-const bannedTagNames = [
-  "SCRIPT",
-  "SVG",
-  "STYLE",
-  "NOSCRIPT",
-  "IFRAME",
-  "OBJECT",
-];
-
-// 특정 요소를 건너뛸 수 있는지 확인하는 함수
-const canSkip = (el) => {
-  return (
-    el.getAttribute?.("translate") === "no" || // 번역 제외 속성
-    el.classList?.contains("notranslate") || // 번역 제외 클래스
-    bannedTagNames.includes(el.tagName) || // 금지된 태그
-    isInShadowDOM(el) // Shadow DOM에 포함된 요소
-  );
-};
-
-const checkAllInline = (el) => {
-  for (let i of el.childNodes) {
-    if (canSkip(el)) {
-      continue;
+// Context menu listener (triggered by right-click)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "TranslatePage") {
+    let textNodes = getAllTextNodes();
+    cache[randomKey] = textNodes;
+    sendForeignTextToBackground(textNodes, randomKey);
+  } else if (message.type === "TranslatedText") {
+    let textNodes = cache[message.data.randomKey];
+    const translatedTexts = message.data.strs;
+    if (textNodes.length !== translatedTexts.strs.length) {
+      console.error("번역된 텍스트의 수가 일치하지 않습니다.");
+      return;
     }
-    if (
-      i.nodeType == Node.ELEMENT_NODE &&
-      window.getComputedStyle(i).display !== "inline"
-    ) {
-      return false;
-    }
+    applyTranslatedText(textNodes, translatedTexts);
+  } else if (message.type === "TranslatedSelectedText") {
+    const translatedTexts = message.data.strs[0];
+    showTranslationPopup(translatedTexts);
   }
-  return true;
-};
+});
 
-// 요소가 Shadow DOM에 포함되어 있는지 확인하는 함수
-const isInShadowDOM = (el) => {
-  while (el) {
-    if (el instanceof ShadowRoot) {
-      return true;
-    }
-    el = el.parentNode;
+// Function to display the translation popup
+function showTranslationPopup(translatedTexts) {
+  let existingPopup = document.getElementById('translation-popup');
+  if (existingPopup) {
+    existingPopup.remove();
   }
-  return false;
-};
 
-// 모든 텍스트 노드를 수집하는 함수
-const dfs = (el) => {
+  let popup = document.createElement('div');
+  popup.id = 'translation-popup';
+  popup.innerHTML = `
+    <div class="popup-header">
+      <div class="logo">
+        <img src="${chrome.runtime.getURL('icons/icon48.png')}" alt="TransMate Logo">
+        <div class="title">TransMate</div>
+      </div>
+      <div class="controls">
+        <img id="settings-button" src="${chrome.runtime.getURL('icons/settings.svg')}" alt="Settings">
+        <img id="close-popup" src="${chrome.runtime.getURL('icons/close.svg')}" alt="Close">
+      </div>
+    </div>
+    <div class="translated-text">${translatedTexts}</div>
+  `;
+
+  document.body.appendChild(popup);
+
+  popup.style.position = 'fixed';
+  popup.style.top = '20px';
+  popup.style.right = '20px';
+
+  document.getElementById('close-popup').addEventListener('click', function() {
+    popup.remove();
+  });
+
+  document.getElementById('settings-button').addEventListener('click', function() {
+    chrome.runtime.sendMessage({ type: 'openOptionsPage' });
+  });
+}
+
+// Function to get all text nodes from the document body
+function getAllTextNodes() {
+  return dfs(document.body);
+}
+
+// Recursive function to perform a depth-first search on the DOM to find text nodes
+function dfs(el) {
   if (canSkip(el)) {
-    // 건너뛸 요소인지 확인
     return [];
   }
 
   let result = [];
   for (let i of el.childNodes) {
     if (canSkip(i)) {
-      // 건너뛸 자식 요소인지 확인
       continue;
     }
 
     if (i.nodeType === Node.TEXT_NODE && i.textContent.trim()) {
-      // 텍스트 노드인 경우
       result.push({ element: i, content: i.textContent.trim() });
     } else if (i.nodeType === Node.ELEMENT_NODE) {
       if (i.tagName === "BR") {
-        // 줄바꿈 요소인 경우
         result.push({ element: i, content: "" });
         continue;
       }
 
       if (checkAllInline(i)) {
-        // 인라인 요소인 경우 (초보자들을 위한 <span>Bronze</span> 같은 요소)
         let tmp = dfs(i);
         if (!tmp.length) continue;
         let div = document.createElement("div");
@@ -117,40 +126,74 @@ const dfs = (el) => {
         }
         result.push({ element: i, content: div.innerHTML });
       } else {
-        // 요소 노드인 경우
         result.push(...dfs(i));
       }
     }
   }
 
   return result;
-};
-
-// 웹페이지의 모든 텍스트 요소를 가져오는 함수
-function getAllTextNodes() {
-  return dfs(document.body);
 }
 
-// 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
+// Function to check if an element should be skipped during translation
+const canSkip = (el) => {
+  return (
+    el.getAttribute?.("translate") === "no" ||
+    el.classList?.contains("notranslate") ||
+    bannedTagNames.includes(el.tagName) ||
+    isInShadowDOM(el)
+  );
+};
+
+// List of HTML tags to skip during translation
+const bannedTagNames = [
+  "SCRIPT",
+  "SVG",
+  "STYLE",
+  "NOSCRIPT",
+  "IFRAME",
+  "OBJECT",
+];
+
+// Function to check if an element is within a shadow DOM
+const isInShadowDOM = (el) => {
+  while (el) {
+    if (el instanceof ShadowRoot) {
+      return true;
+    }
+    el = el.parentNode;
+  }
+  return false;
+};
+
+// Function to send the selected text nodes to the background script for translation
 function sendForeignTextToBackground(textNodes, randomKey) {
   const textContents = textNodes.map((node, index) => ({
     index: index,
     content: node.content,
   }));
-  console.log("추출된 텍스트");
-  console.log(JSON.stringify({ textContents: textContents }));
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-  console.log(textContents.map((item) => item.content));
   chrome.runtime.sendMessage({
     type: "originalText",
     data: {
       originalText: textContents.map((item) => item.content),
-      randomKey: randomKey, // 여기서는 원래의 텍스트 내용만 전송
+      randomKey: randomKey,
     },
   });
 }
 
-// 번역된 텍스트를 웹페이지에 적용하는 함수
+// Function to apply the translated text back to the original text nodes
+function applyTranslatedText(textNodes, translatedTexts) {
+  for (let i = 0; i < textNodes.length; i++) {
+    if (textNodes[i].element.nodeType === Node.TEXT_NODE) {
+      textNodes[i].element.textContent = translatedTexts.strs[i];
+    } else {
+      let div = document.createElement("div");
+      div.innerHTML = translatedTexts.strs[i];
+      applyDfs(textNodes[i].element, div);
+    }
+  }
+}
+
+// Function to recursively apply the translated text to the corresponding DOM nodes
 function applyDfs(node, translatedNode) {
   let oriChilds = node.childNodes;
   let transChilds = translatedNode.childNodes;
@@ -171,8 +214,6 @@ function applyDfs(node, translatedNode) {
     if (transIdx >= transChilds.length) {
       if (oriChilds[oriIdx].nodeType === Node.TEXT_NODE) {
         oriChilds[oriIdx].textContent = "";
-      } else {
-        console.log(oriChilds[oriIdx]);
       }
       continue;
     }
@@ -185,52 +226,6 @@ function applyDfs(node, translatedNode) {
   }
 }
 
-function applyTranslatedText(textNodes, translatedTexts) {
-  console.log("번역된 텍스트");
-  console.log(translatedTexts);
-
-  for (let i = 0; i < textNodes.length; i++) {
-    if (textNodes[i].element.nodeType === Node.TEXT_NODE) {
-      textNodes[i].element.textContent = translatedTexts.strs[i];
-    } else {
-      let div = document.createElement("div");
-      div.innerHTML = translatedTexts.strs[i];
-      applyDfs(textNodes[i].element, div);
-    }
-  }
-}
 let cache = {};
 let randomKey = Math.random().toString(36).substring(2, 12);
-// 메시지 리스너 추가
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "TranslatePage") {
-    let textNodes = getAllTextNodes();
-    cache[randomKey] = textNodes;
-    console.log(cache[randomKey]);
-    sendForeignTextToBackground(textNodes, randomKey);
-  } else if (message.type === "TranslatedText") {
-    console.log("randonKey");
-    console.log(randomKey);
-    let textNodes = cache[message.data.randomKey];
-    const translatedTexts = message.data.strs;
-    console.log("translatedTexts!!!");
-    console.log(translatedTexts);
-    console.log(translatedTexts.strs.length);
-    console.log("textNodes");
-    console.log(textNodes);
-    console.log(textNodes.length);
-    if (textNodes.length !== translatedTexts.strs.length) {
-      console.error("번역된 텍스트의 수가 일치하지 않습니다.");
-      return;
-    }
-    applyTranslatedText(textNodes, translatedTexts);
-    console.log("applyTranslatedText 작동");
-  } else if (message.type === "TranslatedSelectedText") {
-    const strsArray = Object.values(message.data.strs.strs);
-    console.log("selected text");
-    console.log(typeof strsArray[0]);
-    console.log(strsArray[0]);
-    const translatedTexts = strsArray[0];
-    showTranslationPopup(translatedTexts);
-  }
-});
+
