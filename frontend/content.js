@@ -1,306 +1,272 @@
-let isTooltipEnabled = true; // 툴팁 관련
-let miniPopup = null; // 미니 팝업
+(() => {
+  // 상태 변수
+  let isTooltipEnabled = true;
+  let miniPopup = null;
+  const cache = {};
+  let randomKey = generateRandomKey();
 
-function createMiniPopup() {
-  const popup = document.createElement('div');
-  popup.innerHTML = `
-    <div id="transmate-mini-popup">
-      <button id="translate-button">
-        <img src="${chrome.runtime.getURL('icons/icon48.png')}" alt="Translate">
-        <h6>translate this text</h6>
-      </button>
-      <div id="vertical-line"></div>
-      <button id="toggle-button">
-        <img src="${chrome.runtime.getURL('icons/power.svg')}" alt="Toggle">
-      </button>
-    </div>
-  `;
-  document.body.appendChild(popup);
-  
-  const translateButton = popup.querySelector('#translate-button');
-  const toggleButton = popup.querySelector('#toggle-button');
-  
-  translateButton.addEventListener('click', handleTranslate);
-  toggleButton.addEventListener('click', handleToggle);
-  
-  return popup.firstElementChild;
-}
+  // ==== 유틸 함수 ====
 
-// 설정 변경 시 업데이트
-chrome.storage.sync.get(['tooltipEnabled'], (data) => {
-  isTooltipEnabled = data.tooltipEnabled !== undefined ? data.tooltipEnabled : true;
-});
-
-// 설정 변경 리스너 추가
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'SettingsChanged') {
-    isTooltipEnabled = message.settings.tooltipEnabled;
+  function generateRandomKey() {
+    return Math.random().toString(36).substring(2, 12);
   }
-});
 
-///// 부분번역
-function loadPopupCSS() {
-  let link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.type = "text/css";
-  link.href = chrome.runtime.getURL("popup/selectPopup.css");
-  document.head.appendChild(link);
-}
-loadPopupCSS();
-
-// 텍스트 드래그 시 이벤트 리스너 추가
-function handleTranslate() {
-  console.log("handleTranslate");
-  const selection = window.getSelection().toString().trim();
-  if (selection) {
-    chrome.runtime.sendMessage({
-      type: "TranslateSelectedText",
-      data: { originalText: [selection] },
-    });
+  // CSS 로드
+  function loadPopupCSS() {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.type = "text/css";
+    link.href = chrome.runtime.getURL("popup/selectPopup.css");
+    document.head.appendChild(link);
   }
-  hideMiniPopup();
-}
 
-function handleToggle() {
-  isTooltipEnabled = false;
-  chrome.storage.sync.set({ tooltipEnabled: false }, () => {
-    chrome.runtime.sendMessage({ 
-      type: 'SettingsChanged', 
-      settings: { tooltipEnabled: false } 
-    });
-  });
-  hideMiniPopup();
-}
+  // 특정 요소 번역 제외 판단
+  const bannedTagNames = ["SCRIPT", "SVG", "STYLE", "NOSCRIPT", "IFRAME", "OBJECT"];
 
-function showMiniPopup(x, y) {
-  if (!miniPopup) {
-    miniPopup = createMiniPopup();
+  function isInShadowDOM(el) {
+    while (el) {
+      if (el instanceof ShadowRoot) return true;
+      el = el.parentNode;
+    }
+    return false;
   }
-  miniPopup.style.left = `${x}px`;
-  miniPopup.style.top = `${y}px`;
-  miniPopup.style.display = 'flex';
-}
 
-function hideMiniPopup() {
-  if (miniPopup) {
-    miniPopup.style.display = 'none';
+  function canSkip(el) {
+    return (
+      el.getAttribute?.("translate") === "no" ||
+      el.classList?.contains("notranslate") ||
+      bannedTagNames.includes(el.tagName) ||
+      isInShadowDOM(el)
+    );
   }
-}
-document.addEventListener('mouseup', function(e) {
-  if (!isTooltipEnabled) return;
-  const selection = window.getSelection().toString().trim();
 
-  if (selection) {
-    const range = window.getSelection().getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    showMiniPopup(e.clientX, rect.bottom + window.scrollY);
-  } else {
+  function checkAllInline(el) {
+    for (const child of el.childNodes) {
+      if (canSkip(el)) continue;
+      if (child.nodeType === Node.ELEMENT_NODE && window.getComputedStyle(child).display !== "inline") {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // DFS로 텍스트 노드 수집
+  function collectTextNodes(el) {
+    if (canSkip(el)) return [];
+
+    const result = [];
+    for (const node of el.childNodes) {
+      if (canSkip(node)) continue;
+
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+        result.push({ element: node, content: node.textContent.trim() });
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.tagName === "BR") {
+          result.push({ element: node, content: "" });
+        } else if (checkAllInline(node)) {
+          const inlineTexts = collectTextNodes(node);
+          if (!inlineTexts.length) continue;
+
+          const div = document.createElement("div");
+          for (const item of inlineTexts) {
+            if (item.element.nodeType === Node.TEXT_NODE) {
+              div.appendChild(document.createTextNode(item.content));
+            } else {
+              const child = document.createElement(item.element.tagName);
+              child.innerText = item.content;
+              div.appendChild(child);
+            }
+          }
+          result.push({ element: node, content: div.innerHTML });
+        } else {
+          result.push(...collectTextNodes(node));
+        }
+      }
+    }
+    return result;
+  }
+
+  // 전체 텍스트 노드 수집
+  function getAllTextNodes() {
+    return collectTextNodes(document.body);
+  }
+
+  // ==== 미니 팝업 생성 및 제어 ====
+
+  function createMiniPopup() {
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
+      <div id="transmate-mini-popup">
+        <button id="translate-button">
+          <img src="${chrome.runtime.getURL("icons/icon48.png")}" alt="Translate" />
+          <h6>translate this text</h6>
+        </button>
+        <div id="vertical-line"></div>
+        <button id="toggle-button">
+          <img src="${chrome.runtime.getURL("icons/power.svg")}" alt="Toggle" />
+        </button>
+      </div>
+    `;
+    document.body.appendChild(wrapper);
+
+    const translateBtn = wrapper.querySelector("#translate-button");
+    const toggleBtn = wrapper.querySelector("#toggle-button");
+
+    translateBtn.addEventListener("click", handleTranslate);
+    toggleBtn.addEventListener("click", handleToggle);
+
+    return wrapper.firstElementChild;
+  }
+
+  function showMiniPopup(x, y) {
+    if (!miniPopup) miniPopup = createMiniPopup();
+    miniPopup.style.left = `${x}px`;
+    miniPopup.style.top = `${y}px`;
+    miniPopup.style.display = "flex";
+  }
+
+  function hideMiniPopup() {
+    if (miniPopup) miniPopup.style.display = "none";
+  }
+
+  // ==== 이벤트 핸들러 ====
+
+  function handleTranslate() {
+    const selection = window.getSelection().toString().trim();
+    if (selection) {
+      chrome.runtime.sendMessage({
+        type: "TranslateSelectedText",
+        data: { originalText: [selection] },
+      });
+    }
     hideMiniPopup();
   }
-});
 
-
-/////////////////////////////////////////
-//전체번역
-const bannedTagNames = [
-  "SCRIPT",
-  "SVG",
-  "STYLE",
-  "NOSCRIPT",
-  "IFRAME",
-  "OBJECT",
-];
-
-// 특정 요소를 건너뛸 수 있는지 확인하는 함수
-const canSkip = (el) => {
-  return (
-    el.getAttribute?.("translate") === "no" || // 번역 제외 속성
-    el.classList?.contains("notranslate") || // 번역 제외 클래스
-    bannedTagNames.includes(el.tagName) || // 금지된 태그
-    isInShadowDOM(el) // Shadow DOM에 포함된 요소
-  );
-};
-
-const checkAllInline = (el) => {
-  for (let i of el.childNodes) {
-    if (canSkip(el)) {
-      continue;
-    }
-    if (
-      i.nodeType == Node.ELEMENT_NODE &&
-      window.getComputedStyle(i).display !== "inline"
-    ) {
-      return false;
-    }
-  }
-  return true;
-};
-
-// 요소가 Shadow DOM에 포함되어 있는지 확인하는 함수
-const isInShadowDOM = (el) => {
-  while (el) {
-    if (el instanceof ShadowRoot) {
-      return true;
-    }
-    el = el.parentNode;
-  }
-  return false;
-};
-
-// 모든 텍스트 노드를 수집하는 함수
-const dfs = (el) => {
-  if (canSkip(el)) {
-    // 건너뛸 요소인지 확인
-    return [];
+  function handleToggle() {
+    isTooltipEnabled = false;
+    chrome.storage.sync.set({ tooltipEnabled: false }, () => {
+      chrome.runtime.sendMessage({
+        type: "SettingsChanged",
+        settings: { tooltipEnabled: false },
+      });
+    });
+    hideMiniPopup();
   }
 
-  let result = [];
-  for (let i of el.childNodes) {
-    if (canSkip(i)) {
-      // 건너뛸 자식 요소인지 확인
-      continue;
-    }
+  function onMouseUp(e) {
+    if (!isTooltipEnabled) return;
+    const selection = window.getSelection().toString().trim();
 
-    if (i.nodeType === Node.TEXT_NODE && i.textContent.trim()) {
-      // 텍스트 노드인 경우
-      result.push({ element: i, content: i.textContent.trim() });
-    } else if (i.nodeType === Node.ELEMENT_NODE) {
-      if (i.tagName === "BR") {
-        // 줄바꿈 요소인 경우
-        result.push({ element: i, content: "" });
+    if (selection) {
+      const range = window.getSelection().getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      showMiniPopup(e.clientX, rect.bottom + window.scrollY);
+    } else {
+      hideMiniPopup();
+    }
+  }
+
+  // ==== 번역 결과 페이지 적용 ====
+
+  function applyDfs(originalNode, translatedNode) {
+    const oriChilds = originalNode.childNodes;
+    const transChilds = translatedNode.childNodes;
+    let transIdx = 0;
+
+    for (let oriIdx = 0; oriIdx < oriChilds.length; oriIdx++) {
+      if (oriChilds[oriIdx].textContent.trim() === "" && oriChilds[oriIdx].tagName !== "BR") {
         continue;
       }
 
-      if (checkAllInline(i)) {
-        // 인라인 요소인 경우 (초보자들을 위한 <span>Bronze</span> 같은 요소)
-        let tmp = dfs(i);
-        if (!tmp.length) continue;
-        let div = document.createElement("div");
-        for (let i of tmp) {
-          if (i.element.nodeType === Node.TEXT_NODE) {
-            div.appendChild(document.createTextNode(i.content));
-          } else {
-            let child = document.createElement(i.element.tagName);
-            child.innerText = i.content;
-            div.appendChild(child);
-          }
+      if (transIdx >= transChilds.length) {
+        if (oriChilds[oriIdx].nodeType === Node.TEXT_NODE) {
+          oriChilds[oriIdx].textContent = "";
         }
-        result.push({ element: i, content: div.innerHTML });
-      } else {
-        // 요소 노드인 경우
-        result.push(...dfs(i));
+        continue;
       }
-    }
-  }
 
-  return result;
-};
-
-// 웹페이지의 모든 텍스트 요소를 가져오는 함수
-function getAllTextNodes() {
-  return dfs(document.body);
-}
-
-// 추출한 외국어 텍스트를 백그라운드 스크립트로 전송하는 함수
-function sendForeignTextToBackground(textNodes, randomKey) {
-  const textContents = textNodes.map((node, index) => ({
-    index: index,
-    content: node.content,
-  }));
-  console.log("추출된 텍스트");
-  console.log(JSON.stringify({ textContents: textContents }));
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-  console.log(textContents.map((item) => item.content));
-  chrome.runtime.sendMessage({
-    type: "originalText",
-    data: {
-      originalText: textContents.map((item) => item.content),
-      randomKey: randomKey, // 여기서는 원래의 텍스트 내용만 전송
-    },
-  });
-}
-
-// 번역된 텍스트를 웹페이지에 적용하는 함수
-function applyDfs(node, translatedNode) {
-  let oriChilds = node.childNodes;
-  let transChilds = translatedNode.childNodes;
-
-  for (
-    let oriIdx = 0, transIdx = 0;
-    oriIdx < oriChilds.length;
-    oriIdx++, transIdx++
-  ) {
-    if (
-      oriChilds[oriIdx].textContent.trim() === "" &&
-      oriChilds[oriIdx].tagName !== "BR"
-    ) {
-      transIdx--;
-      continue;
-    }
-
-    if (transIdx >= transChilds.length) {
       if (oriChilds[oriIdx].nodeType === Node.TEXT_NODE) {
-        oriChilds[oriIdx].textContent = "";
+        oriChilds[oriIdx].textContent = transChilds[transIdx].textContent;
       } else {
-        console.log(oriChilds[oriIdx]);
+        applyDfs(oriChilds[oriIdx], transChilds[transIdx]);
       }
-      continue;
-    }
-
-    if (oriChilds[oriIdx].nodeType === Node.TEXT_NODE) {
-      oriChilds[oriIdx].textContent = transChilds[transIdx].textContent;
-    } else {
-      applyDfs(oriChilds[oriIdx], transChilds[transIdx]);
+      transIdx++;
     }
   }
-}
 
-function applyTranslatedText(textNodes, translatedTexts) {
-  console.log("번역된 텍스트");
-  console.log(translatedTexts);
-
-  for (let i = 0; i < textNodes.length; i++) {
-    if (textNodes[i].element.nodeType === Node.TEXT_NODE) {
-      textNodes[i].element.textContent = translatedTexts.strs[i];
-    } else {
-      let div = document.createElement("div");
-      div.innerHTML = translatedTexts.strs[i];
-      applyDfs(textNodes[i].element, div);
+  function applyTranslatedText(textNodes, translatedTexts) {
+    for (let i = 0; i < textNodes.length; i++) {
+      if (textNodes[i].element.nodeType === Node.TEXT_NODE) {
+        textNodes[i].element.textContent = translatedTexts.strs[i];
+      } else {
+        const div = document.createElement("div");
+        div.innerHTML = translatedTexts.strs[i];
+        applyDfs(textNodes[i].element, div);
+      }
     }
   }
-}
-let cache = {};
-let randomKey = Math.random().toString(36).substring(2, 12);
-// 메시지 리스너 추가
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "TranslatePage") {
-    let textNodes = getAllTextNodes();
-    cache[randomKey] = textNodes;
-    console.log(cache[randomKey]);
-    sendForeignTextToBackground(textNodes, randomKey);
-  } else if (message.type === "TranslatedText") {
-    console.log("randonKey");
-    console.log(randomKey);
-    let textNodes = cache[message.data.randomKey];
-    const translatedTexts = message.data.strs;
-    console.log("translatedTexts!!!");
-    console.log(translatedTexts);
-    console.log(translatedTexts.strs.length);
-    console.log("textNodes");
-    console.log(textNodes);
-    console.log(textNodes.length);
-    if (textNodes.length !== translatedTexts.strs.length) {
-      console.error("번역된 텍스트의 수가 일치하지 않습니다.");
-      return;
-    }
-    applyTranslatedText(textNodes, translatedTexts);
-    console.log("applyTranslatedText 작동");
-  } else if (message.type === "TranslatedSelectedText") {
-    const strsArray = Object.values(message.data.strs.strs);
-    console.log("selected text");
-    console.log(typeof strsArray[0]);
-    console.log(strsArray[0]);
-    const translatedTexts = strsArray[0];
-    showTranslationPopup(translatedTexts);
+
+  // ==== 백그라운드와 메시지 통신 ====
+
+  function sendForeignTextToBackground(textNodes, key) {
+    const originalTextArr = textNodes.map((node) => node.content);
+    chrome.runtime.sendMessage({
+      type: "originalText",
+      data: {
+        originalText: originalTextArr,
+        randomKey: key,
+      },
+    });
   }
-});
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    switch (message.type) {
+      case "TranslatePage": {
+        const textNodes = getAllTextNodes();
+        cache[randomKey] = textNodes;
+        sendForeignTextToBackground(textNodes, randomKey);
+        break;
+      }
+      case "TranslatedText": {
+        const textNodes = cache[message.data.randomKey];
+        const translatedTexts = message.data.strs;
+
+        if (!textNodes || textNodes.length !== translatedTexts.strs.length) {
+          console.error("번역된 텍스트의 수가 일치하지 않습니다.");
+          return;
+        }
+        applyTranslatedText(textNodes, translatedTexts);
+        break;
+      }
+      case "TranslatedSelectedText": {
+        // 메시지 구조 방어적으로 처리
+        const strsContainer = message.data?.strs || {};
+        const strsArray = Array.isArray(strsContainer.strs)
+          ? Object.values(strsContainer.strs)
+          : Array.isArray(strsContainer)
+          ? strsContainer
+          : [];
+
+        if (strsArray.length > 0) {
+          showTranslationPopup(strsArray[0]);
+        }
+        break;
+      }
+    }
+  });
+
+  // ==== 초기화 ====
+
+  chrome.storage.sync.get(["tooltipEnabled"], (data) => {
+    isTooltipEnabled = data.tooltipEnabled !== undefined ? data.tooltipEnabled : true;
+  });
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === "SettingsChanged") {
+      isTooltipEnabled = message.settings.tooltipEnabled;
+    }
+  });
+
+  document.addEventListener("mouseup", onMouseUp);
+  loadPopupCSS();
+})();

@@ -1,156 +1,149 @@
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => { // 옵션버튼 눌렸는지 확인
-  if (message.type === 'openOptionsPage') {
-      chrome.runtime.openOptionsPage();
-  }
-});
+// background.js
 
-// 확장 프로그램이 설치되거나 업데이트될 때 실행
+const XAI_API_KEY = 'xai-4kqFhE0Mxgybcp2SCwRwZgnIw73ajCVXsBOCjtXESRpr5xsiWQxZfDK3wUReUaNBY8e0e8dT30S5WcN6'; // 실제 키로 교체하세요
+const API_URL = 'https://api.x.ai/v1/chat/completions';
+const MODEL_NAME = 'grok-3-latest';
+
+// 확장 설치 시 컨텍스트 메뉴 생성
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: "translateWithTransMate",
-    title: "Translate with TransMate",
-    contexts: ["page", "selection"]
+    id: 'translateWithTransMate',
+    title: 'Translate with TransMate',
+    contexts: ['page', 'selection']
   }, () => {
     if (chrome.runtime.lastError) {
-      console.error("Error creating context menu:", chrome.runtime.lastError);
+      console.error('Error creating context menu:', chrome.runtime.lastError);
     } else {
-      console.log("Context menu created successfully");
+      console.log('Context menu created successfully');
     }
   });
 });
 
-// 컨텍스트 메뉴 클릭 이벤트 처리
+// 컨텍스트 메뉴 클릭 시 현재 탭에 메시지 전송
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "translateWithTransMate") {
+  if (info.menuItemId === 'translateWithTransMate' && tab.id) {
     chrome.tabs.sendMessage(tab.id, { type: 'TranslatePage' });
   }
 });
 
-// ... (기존 코드는 그대로 유지)
-
-// 메시지 리스너
+// 메시지 리스너 한 곳에서 처리
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'originalText' || message.type === 'TranslateSelectedText') {
-    console.log("message!")
-    console.log(message)
-    handleTranslation(message, sender.tab.id, message.data.randomKey);
-  } else if (message.type === 'LanguageChanged') {
-    // 언어 변경 처리 (기존 코드 유지)
-    chrome.storage.sync.set({ language: message.language }, () => {
-      console.log('Language updated to:', message.language);
-    });}
-    else if (message.type === 'SettingsChanged') {
-      // 모든 탭에 설정 변경 메시지 전송
-      chrome.tabs.query({}, (tabs) => {
-        tabs.forEach((tab) => {
-          chrome.tabs.sendMessage(tab.id, {
-            type: 'SettingsChanged',
-            settings: message.settings
-          });
-        });
+  switch (message.type) {
+    case 'openOptionsPage':
+      chrome.runtime.openOptionsPage();
+      break;
+
+    case 'originalText':
+    case 'TranslateSelectedText':
+      if (sender.tab && sender.tab.id) {
+        handleTranslation(message, sender.tab.id);
+      }
+      break;
+
+    case 'LanguageChanged':
+      chrome.storage.sync.set({ language: message.language }, () => {
+        console.log('Language updated to:', message.language);
       });
-      // options 페이지에도 설정 변경 메시지 전송
-    chrome.runtime.sendMessage({
-      type: 'SettingsChanged',
-      settings: message.settings
-    });
+      break;
 
-
-    }
-  
+    case 'SettingsChanged':
+      // 모든 탭에 설정 변경 알림
+      chrome.tabs.query({}, (tabs) => {
+        for (const tab of tabs) {
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: 'SettingsChanged',
+              settings: message.settings
+            });
+          }
+        }
+      });
+      // 옵션 페이지에도 메시지 보내기
+      chrome.runtime.sendMessage({
+        type: 'SettingsChanged',
+        settings: message.settings
+      });
+      break;
+  }
 });
 
 // 번역 처리 함수
-function handleTranslation(message, tabId, randomKey) {
-  console.log("번역 처리 시작");
-  const texts = message.data.originalText;
-  console.log("번역할 텍스트:", texts);
+async function handleTranslation(message, tabId) {
+  try {
+    console.log(message);
+    const texts = message.data.originalText || [];
+    if (!texts.length) return;
 
-  chrome.storage.sync.get('language', (data) => {
-    const lang = data.language || 'ko'; // 기본 언어를 한국어로 설정
-    translateTexts(texts, lang)
-      .then((translatedTexts) => {
-        if (message.type === 'originalText'){
-        chrome.tabs.sendMessage(tabId, {
-          type: 'TranslatedText',
-          data: {strs:translatedTexts, randomKey:randomKey},
-        })}
-        else if (message.type === 'TranslateSelectedText'){
-          chrome.tabs.sendMessage(tabId, {
-            type: 'TranslatedSelectedText',
-            data: {strs:translatedTexts},
-          })};
-      })
-      .catch((error) => {
-        console.error('Translation error:', error);
-        const failedTranslations = texts.map(() => 'translation failed');
-        chrome.tabs.sendMessage(tabId, {
-          type: 'TranslatedText',
-          data: failedTranslations,
-        });
-      });
-  });
+    // 저장된 언어 가져오기, 기본 'ko'
+    const { language: lang = 'ko' } = await chrome.storage.sync.get('language');
+
+    const translatedTexts = await translateTexts(texts, lang);
+
+    const sendType = message.type === 'originalText' ? 'TranslatedText' : 'TranslatedSelectedText';
+    const dataToSend = sendType === 'TranslatedText' 
+      ? { strs: translatedTexts, randomKey: message.data.randomKey } 
+      : { strs: { strs: translatedTexts } };
+
+    chrome.tabs.sendMessage(tabId, { type: sendType, data: dataToSend });
+
+  } catch (error) {
+    console.error('Translation error:', error);
+    const failedTranslations = (message.data.originalText || []).map(() => 'translation failed');
+    chrome.tabs.sendMessage(message.sender?.tab?.id || tabId, {
+      type: 'TranslatedText',
+      data: failedTranslations,
+    });
+  }
 }
 
-// 기존의 translateTexts 및 callTranslationAPI 함수는 그대로 유지
-
-// 번역 API 호출 함수
+// 번역 요청 함수
 async function translateTexts(texts, lang) {
+  const inputText = texts.join('\n');
+  const prompt = `Translate the following text into ${lang}:\n${inputText}`;
+
+  const body = {
+    model: MODEL_NAME,
+    stream: false,
+    temperature: 0.7,
+    messages: [{ role: 'user', content: prompt }]
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
-    console.log(1);
-    console.log(JSON.stringify({ texts: texts, language: lang }));
-    const translatedTexts = await callTranslationAPI(texts, lang);
-    return translatedTexts;
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${XAI_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Grok API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || '번역 실패';
+
+    // 모든 문장에 동일한 번역문을 배열로 반환 (기존 호환 유지)
+    return texts.map(() => reply);
+
   } catch (error) {
-    console.error('Translation API call failed:', error);
+    clearTimeout(timeoutId);
+    console.error('Grok API 요청 실패:', error);
     return texts.map(() => 'api에서 번역 실패');
   }
 }
 
-// 번역 API 호출 함수
-async function callTranslationAPI(texts, lang) {
-  console.log(2);
-  console.log(JSON.stringify({ strs: texts, language: lang }));
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000); // 30초 타임아웃
-
-  const response = await fetch('http://158.247.199.223:3001/translate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ strs: texts, language: lang }), // body에 원문 text 넣어서 json 형태로 전달
-    signal: controller.signal,
-  });
-
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    throw new Error('Translation API failed');
-  }
-  const data = await response.json();
-  console.log('request에 담은 내용');
-  console.log(JSON.stringify({ strs: texts, language: lang }))
-  console.log("response.body");
-  console.log(data)
-  //console.log(data);
-  return data;
-}
-
-
-// background.js에 추가
-
+// 서비스 워커 fetch 이벤트 리스너 (optional)
 self.addEventListener('fetch', (event) => {
   const preloadPromise = event.preloadResponse;
   event.waitUntil(
-      preloadPromise.then(response => {
-          if (response) {
-              return response;
-          }
-          return fetch(event.request);
-      }).catch(error => {
-          console.error('Preload response failed:', error);
-          return fetch(event.request);
-      })
+    preloadPromise.then(response => response || fetch(event.request)).catch(() => fetch(event.request))
   );
 });
