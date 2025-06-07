@@ -1,8 +1,8 @@
 // background.js
 
-const XAI_API_KEY = 'xai-4kqFhE0Mxgybcp2SCwRwZgnIw73ajCVXsBOCjtXESRpr5xsiWQxZfDK3wUReUaNBY8e0e8dT30S5WcN6'; // 실제 키로 교체하세요
-const API_URL = 'https://api.x.ai/v1/chat/completions';
-const MODEL_NAME = 'grok-3-latest';
+const LLM_API_KEY = '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'; // 실제 키로 교체하세요
+const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL_NAME = 'llama3-401b-8192';
 
 // 확장 설치 시 컨텍스트 메뉴 생성
 chrome.runtime.onInstalled.addListener(() => {
@@ -99,13 +99,11 @@ async function handleTranslation(message, tabId) {
 // 번역 요청 함수
 async function translateTexts(texts, lang) {
   const inputText = texts.join('\n');
-  const prompt = `Translate the following text into ${lang}:\n${inputText}`;
+  const prompt = `Translate the following text into ${lang}:\n${inputText} and add a line break between each paragraph.`;
 
   const body = {
-    model: MODEL_NAME,
-    stream: false,
-    temperature: 0.7,
-    messages: [{ role: 'user', content: prompt }]
+    "model": MODEL_NAME,
+    "messages": [{ "role": 'user', "content": prompt }]
   };
 
   const controller = new AbortController();
@@ -116,7 +114,7 @@ async function translateTexts(texts, lang) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XAI_API_KEY}`,
+        'Authorization': `Bearer ${LLM_API_KEY}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
