@@ -1,8 +1,7 @@
 // background.js
-
-const XAI_API_KEY = 'xai-4kqFhE0Mxgybcp2SCwRwZgnIw73ajCVXsBOCjtXESRpr5xsiWQxZfDK3wUReUaNBY8e0e8dT30S5WcN6'; // 실제 키로 교체하세요
-const API_URL = 'https://api.x.ai/v1/chat/completions';
-const MODEL_NAME = 'grok-3-latest';
+const LLM_API_KEY = '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'; // 실제 키로 교체하세요
+const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL_NAME = 'llama3-8b-8192'; // Groq 지원 모델[3][6]
 
 // 확장 설치 시 컨텍스트 메뉴 생성
 chrome.runtime.onInstalled.addListener(() => {
@@ -35,6 +34,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'originalText':
     case 'TranslateSelectedText':
+      console.log(message)
       if (sender.tab && sender.tab.id) {
         handleTranslation(message, sender.tab.id);
       }
@@ -102,40 +102,45 @@ async function translateTexts(texts, lang) {
   const prompt = `Translate the following text into ${lang}:\n${inputText}`;
 
   const body = {
-    model: MODEL_NAME,
+    model: MODEL_NAME, // Groq 호환 모델명으로 변경
     stream: false,
     temperature: 0.7,
-    messages: [{ role: 'user', content: prompt }]
+    messages: [{ 
+      role: 'system',  // 시스템 역할 추가 권장
+      content: 'You are a professional translator. Maintain original formatting.'
+    }, {
+      role: 'user', 
+      content: prompt 
+    }]
   };
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch(API_URL, { // 엔드포인트 변경
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XAI_API_KEY}`,
+        'Authorization': `Bearer ${LLM_API_KEY}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Grok API error: ${response.statusText}`);
+      throw new Error(`Groq API error: ${response.statusText}`);
     }
 
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content || '번역 실패';
 
-    // 모든 문장에 동일한 번역문을 배열로 반환 (기존 호환 유지)
     return texts.map(() => reply);
 
   } catch (error) {
-    clearTimeout(timeoutId);
-    console.error('Grok API 요청 실패:', error);
+    console.error('Groq API 요청 실패:', error);
     return texts.map(() => 'api에서 번역 실패');
   }
 }
