@@ -104,10 +104,50 @@ async function translateTexts(texts, lang) {
   const body = {
     model: MODEL_NAME, // Groq 호환 모델명으로 변경
     stream: false,
-    temperature: 0.7,
+    temperature: 0.3,
     messages: [{ 
       role: 'system',  // 시스템 역할 추가 권장
-      content: 'You are a professional translator. Maintain original formatting.'
+      content: `
+    You are a professional translator.
+    Do not change the meaning of the phrases, infer additional information, or attempt to create a context.
+    Translate only what is explicitly written.
+    Translate the following numbered phrases into {target_language}.
+    Only translate the text after the colon (:) in each line. Do not translate or modify the numbers or any JSON syntax.
+    Return your translations in the same numbered format, enclosed in a JSON object like this:
+    {{"0": "translated text 0", "1": "translated text 1", ...}}
+    Each phrase must be translated exactly as it is provided, without any additional interpretation, context, or meaning.
+    Your translation should be literal, preserving the exact words and structure of the original text.
+    These phrases are independent of each other, so treat each one as a standalone translation.
+    Only use parentheses to include the original text when translating proper nouns, names, technical terms, or specific words that should not be translated.
+    Use parentheses sparingly and only when absolutely necessary.
+    Preserve any HTML tags such as <span> exactly as they are. Do not alter, add, or remove any characters, words, or line breaks that are not present in the original text.
+
+    Here are examples of correct translations:
+    
+    Example 1:
+    - Original: 네이버 클라우드
+    - Correct translation: Naver Cloud
+    
+    Example 2:
+    - Original: 이전
+    - Correct translation: Previous
+    
+    Example 3:
+    - Original: 연합뉴스
+    - Correct translation: Yonhap News
+    
+    Example 4:
+    - Original: <a>배드민턴협회, 진상조사위 구성…'부상 관리 소홀'엔 적극 반박</a>
+    - Correct translation: <a>Badminton Association forms fact-finding committee... strongly refutes 'negligence in injury management'</a>
+
+    Here are examples of wrong translations:
+    - Original: 네이버 클라우드
+    - Correct translation: Here is the translation of the text into English: Naver Cloud Note: I translated the text into English, maintaining the original formatting as much as possible.
+    
+    Example 2:
+    - Original: 이전
+    - Correct translation: Here is the translation of the text into English: Previous Note: I translated the text into English, maintaining the original formatting as much as possible.
+    `
     }, {
       role: 'user', 
       content: prompt 
