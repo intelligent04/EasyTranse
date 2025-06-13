@@ -1,5 +1,5 @@
 // background.js
-const LLM_API_KEY = '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'; // 실제 키로 교체하세요
+const LLM_API_KEY = ''// 실제 키로 교체하세요
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL_NAME = 'llama3-8b-8192'; // Groq 지원 모델[3][6]
 
