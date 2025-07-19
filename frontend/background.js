@@ -1,7 +1,11 @@
 // background.js
-const LLM_API_KEY = ''// 실제 키로 교체하세요
-const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL_NAME = 'llama3-8b-8192'; // Groq 지원 모델[3][6]
+// settings.js에서 설정 가져오기
+importScripts('settings.js');
+
+// API 설정
+const LLM_API_KEY = settings.LLM_API_KEY;
+const API_URL = settings.API_URL;
+const MODEL_NAME = settings.MODEL_NAME;
 
 // 확장 설치 시 컨텍스트 메뉴 생성
 chrome.runtime.onInstalled.addListener(() => {

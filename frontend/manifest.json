@@ -31,7 +31,8 @@
         "icons/close.svg",
         "icons/settings.svg",
         "popup/selectPopup.css",
-        "options/options.css"
+        "options/options.css",
+        "settings.js"
       ],
       "matches": ["<all_urls>"]
     }
